@@ -1,0 +1,13 @@
+{
+  "stream_type": "multi_update_strict_turnstile",
+  "universe_size": 1000000,
+  "final_support_size": 100,
+  "cancelled_items": 1000,
+  "max_positive_updates": 5,
+  "max_delta": 100,
+  "stream_length": 10229,
+  "seed": 42,
+  "output": "data\\synthetic\\multi_support_100.csv",
+  "support_file": "data\\synthetic\\multi_support_100.support.csv",
+  "frequencies_file": "data\\synthetic\\multi_support_100.frequencies.csv"
+}

@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# C/C++ and CMake build output
+cpp/build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+*.o
+*.obj
+*.exe
+
+# LaTeX build files (final PDFs and source files are intentionally not ignored)
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+*.lof
+*.lot
+*.idx
+*.fls
+*.fdb_latexmk
+local_build/
+
+# Local and external datasets
+data/raw/*
+!data/raw/README.md
+data/processed/*
+!data/processed/README.md
+data/raw/**/*LOBSTER*
+data/raw/**/*_orderbook_*.csv
+data/raw/**/*_message_*.csv
+*.zip
+
+# Support documents 
+local_references/
+references/
+docs/
+report/
+
+# Generated results; retain documentation and small summary tables
+results/**
+!results/README.md
+!results/*summary*.csv
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
