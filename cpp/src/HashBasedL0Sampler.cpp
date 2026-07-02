@@ -6,8 +6,20 @@ HashBasedL0Sampler::HashBasedL0Sampler(
     std::size_t num_levels,
     std::uint64_t seed
 )
-    : levels_(num_levels),
-      seed_(seed) {}
+    :seed_(seed) {
+        levels_.reserve(num_levels);
+        const std::size_t sparsity = 4;
+        const std::size_t rows = 4;
+        const std::size_t buckets = 8;
+
+        for (std::size_t level = 0; level < num_levels; ++level)
+        {
+            levels_.emplace_back(
+                sparsity,rows, buckets, seed_ + static_cast<std::uint64_t>(level)
+            );
+        }
+        
+    }
 
 void HashBasedL0Sampler::update(std::int64_t item_id, std::int64_t delta) {
     if (levels_.empty() || delta == 0) {
@@ -31,8 +43,8 @@ std::optional<std::int64_t> HashBasedL0Sampler::sample() const {
 
         auto recovered = levels_[level].recover();
 
-        if (recovered.has_value()) {
-            return recovered;
+        if (recovered.success && !recovered.candidates.empty()) {
+            return recovered.candidates.front();
         }
     }
 

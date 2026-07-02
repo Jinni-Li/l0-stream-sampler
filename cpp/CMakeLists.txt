@@ -28,6 +28,7 @@ add_executable(
     tests/test_hash_based.cpp
     src/HashBasedL0Sampler.cpp
     src/OneSparseSketch.cpp
+    src/SSparseSketch.cpp
 )
 
 add_executable(

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "OneSparseSketch.hpp"
+#include "SSparseSketch.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -17,7 +17,7 @@ public:
     std::size_t num_levels() const;
 
 private:
-    std::vector<OneSparseSketch> levels_;
+    std::vector<SSparseSketch> levels_;
     std::uint64_t seed_;
 
     std::uint64_t hash_item(std::int64_t item_id) const;
