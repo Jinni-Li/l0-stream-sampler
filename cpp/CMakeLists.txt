@@ -13,6 +13,7 @@ add_executable(
     src/ExactSupportTracker.cpp
     src/L0sampler.cpp
     src/OneSparseSketch.cpp
+    src/SSparseSketch.cpp
     src/HashBasedL0Sampler.cpp
 )
 
@@ -26,5 +27,12 @@ add_executable(
     test_hash_based
     tests/test_hash_based.cpp
     src/HashBasedL0Sampler.cpp
+    src/OneSparseSketch.cpp
+)
+
+add_executable(
+    test_s_sparse
+    tests/test_s_sparse.cpp
+    src/SSparseSketch.cpp
     src/OneSparseSketch.cpp
 )
