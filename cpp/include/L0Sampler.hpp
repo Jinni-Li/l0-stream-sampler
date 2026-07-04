@@ -11,7 +11,7 @@
 class L0Sampler
 {
 private:
-    std::unordered_map<std::int64_t, std::int64_t> frequesncies_;
+    std::unordered_map<std::int64_t, std::int64_t> frequencies_;
     std::mt19937_64 rng_;
 public:
     explicit L0Sampler(std::uint64_t seed = 42);

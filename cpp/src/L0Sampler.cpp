@@ -5,25 +5,25 @@
 L0Sampler::L0Sampler(std::uint64_t seed):rng_(seed){}
 
 void L0Sampler::update(const StreamUpdate& update){
-    frequesncies_[update.item_id] += update.delta;
+    frequencies_[update.item_id] += update.delta;
 
-    if (frequesncies_[update.item_id] == 0)
+    if (frequencies_[update.item_id] == 0)
     {
-        frequesncies_.erase(update.item_id);
+        frequencies_.erase(update.item_id);
     }
     
 }
 
 
 std::optional<std::int64_t> L0Sampler::sample(){
-    if (frequesncies_.empty()){
+    if (frequencies_.empty()){
         return std::nullopt;
     }
     
     std::vector<std::int64_t> support;
-    support.reserve(frequesncies_.size());
+    support.reserve(frequencies_.size());
 
-    for (const auto& [item_id, frequency] : frequesncies_)
+    for (const auto& [item_id, frequency] : frequencies_)
     {
         if (frequency != 0)
         {
@@ -39,5 +39,5 @@ std::optional<std::int64_t> L0Sampler::sample(){
 }
 
 std::size_t L0Sampler::support_size() const{
-    return frequesncies_.size();
+    return frequencies_.size();
 }
