@@ -21,8 +21,11 @@ private:
     std::uint64_t seed_;
 
     std::uint64_t hash_item(std::int64_t item_id) const;
+    
+    std::uint64_t selection_hash(std::int64_t item_id) const;
 
     static std::uint64_t splitmix64(std::uint64_t x);
 
     static std::size_t trailing_zeros(std::uint64_t x);
+
 };

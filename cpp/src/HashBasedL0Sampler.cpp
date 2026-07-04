@@ -1,6 +1,7 @@
 #include "HashBasedL0Sampler.hpp"
 
 #include <algorithm>
+#include <vector>
 
 HashBasedL0Sampler::HashBasedL0Sampler(
     std::size_t num_levels,
@@ -38,17 +39,49 @@ void HashBasedL0Sampler::update(std::int64_t item_id, std::int64_t delta) {
 }
 
 std::optional<std::int64_t> HashBasedL0Sampler::sample() const {
+
+    std::vector<std::int64_t> candidates;
+
     for (std::size_t i = levels_.size(); i > 0; --i) {
         std::size_t level = i - 1;
 
         auto recovered = levels_[level].recover();
 
-        if (recovered.success && !recovered.candidates.empty()) {
-            return recovered.candidates.front();
+        if (!recovered.success)
+        {
+            continue;
+        }
+        
+        for (std::int64_t candidate:recovered.candidates)
+        {
+            if (std::find(candidates.begin(), candidates.end(), candidate) == candidates.end())
+            {
+                candidates.push_back(candidate);
+            }
+            
         }
     }
+        
+    if (candidates.empty())
+    {
+        return std::nullopt;
+    }
+        
 
-    return std::nullopt;
+    std::int64_t best_candidate = candidates.front();
+    std::uint64_t best_hash = selection_hash(best_candidate);
+
+    for (std::int64_t candidate:candidates)
+    {
+        std::uint64_t candidate_hash = selection_hash(candidate);
+
+        if (candidate_hash < best_hash)
+        {
+            best_candidate = candidate;
+            best_hash = candidate_hash;
+        }
+    }
+    return best_candidate;
 }
 
 std::size_t HashBasedL0Sampler::num_levels() const {
@@ -58,6 +91,12 @@ std::size_t HashBasedL0Sampler::num_levels() const {
 std::uint64_t HashBasedL0Sampler::hash_item(std::int64_t item_id) const {
     std::uint64_t x = static_cast<std::uint64_t>(item_id);
     return splitmix64(x ^ seed_);
+}
+
+std::uint64_t HashBasedL0Sampler::selection_hash(std::int64_t item_id) const{
+    std::uint64_t x = static_cast<std::uint64_t>(item_id);
+    constexpr std::uint64_t selection_salt = 0xd1b54a32d192ed03ULL;
+    return splitmix64(x^seed_^selection_salt);
 }
 
 std::uint64_t HashBasedL0Sampler::splitmix64(std::uint64_t x) {
