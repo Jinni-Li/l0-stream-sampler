@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <iostream>
 #include <unordered_set>
+#include <stdexcept>
 
 int main() {
     {
@@ -10,9 +11,9 @@ int main() {
 
         sampler.update(17, 3);
 
-        auto sample = sampler.sample();
+        SampleResult sample = sampler.sample();
 
-        if (!sample.has_value() || sample.value() != 17) {
+        if (sample.status != SampleStatus::Success || !sample.item.has_value() || sample.item.value() != 17) {
             std::cerr << "Test 1 failed: expected to sample 17\n";
             return 1;
         }
@@ -24,9 +25,9 @@ int main() {
         sampler.update(17, 3);
         sampler.update(17, -3);
 
-        auto sample = sampler.sample();
+        SampleResult sample = sampler.sample();
 
-        if (sample.has_value()) {
+        if (sample.status != SampleStatus::EmptySupport || sample.item.has_value()) {
             std::cerr << "Test 2 failed: expected failure on empty support\n";
             return 1;
         }
@@ -52,9 +53,9 @@ int main() {
 
             auto sample = sampler.sample();
 
-            if (!sample.has_value()) {
+            if (sample.status != SampleStatus::Success || !sample.item.has_value()) {
                 ++failures;
-            } else if (support.count(sample.value()) > 0) {
+            } else if (support.count(sample.item.value()) > 0) {
                 ++valid;
             } else {
                 ++invalid;
@@ -76,6 +77,21 @@ int main() {
                   << ", failures=" << failures
                   << ", invalid=" << invalid
                   << "\n";
+    }
+
+    {
+        bool threw = false;
+
+        try{
+            HashBasedL0Sampler sampler(0, 42);
+        }catch (const std::invalid_argument&){
+            threw = true;
+        }
+
+        if(!threw){
+            std::cerr << "Test 4 failed: expected invalid_argument for zero levels\n";
+            return 1;
+        }
     }
 
     std::cout << "All HashBasedL0Sampler tests passed.\n";

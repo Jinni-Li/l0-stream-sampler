@@ -2,6 +2,7 @@
 #include "ExactSupportTracker.hpp"
 #include "L0Sampler.hpp"
 #include "HashBasedL0Sampler.hpp"
+#include "SamplerStatus.hpp"
 
 #include <iostream>
 #include <string>
@@ -12,6 +13,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <optional>
+
 
 int main(int argc, char* argv[]){
     if(argc < 2){
@@ -86,7 +88,8 @@ int main(int argc, char* argv[]){
 
         for (int i = 0; i < trials; i++)
         {
-            std::optional<std::int64_t> sample;
+            std::optional<std::int64_t> sample_item;
+            SampleStatus sample_status = SampleStatus::NoRecoverableLevel;
 
             if (sampler_type == "hash") {
                 HashBasedL0Sampler sampler(32, static_cast<std::uint64_t>(123 + i));
@@ -95,7 +98,9 @@ int main(int argc, char* argv[]){
                     sampler.update(update.item_id, update.delta);
                 }
 
-                sample = sampler.sample();
+                SampleResult sample = sampler.sample();
+                sample_item = sample.item;
+                sample_status = sample.status;
             } else {
                 L0Sampler sampler(123 + i);
 
@@ -103,20 +108,28 @@ int main(int argc, char* argv[]){
                     sampler.update(update);
                 }
 
-                sample = sampler.sample();
+                sample_item = sampler.sample();
+
+                if (sample_item.has_value())
+                {
+                    sample_status = SampleStatus::Success;
+                }else{
+                    sample_status = SampleStatus::EmptySupport;
+                }
+                
             }
 
-            if (!sample.has_value())
+            if (!sample_item.has_value())
             {
                 failures ++;
 
                 if (output_file.is_open()){
-                    output_file << i << ",,failure\n";
+                    output_file << i << ",," << to_string(sample_status) << "\n";
                 }
                 continue;
             }
 
-            std::int64_t item = sample.value();
+            std::int64_t item = sample_item.value();
 
             if (tracker.contains(item))
             {
@@ -125,15 +138,17 @@ int main(int argc, char* argv[]){
 
                 if (output_file.is_open())
                 {
-                    output_file << i << "," << item <<",valid\n";
+                    output_file << i << "," << item << "," << to_string(sample_status) << "\n";
                 }
                 
 
             } else{
                 invalid_samples ++;
+                sample_status = SampleStatus::InvalidSample;
+
                 if (output_file.is_open())
                 {
-                    output_file << i << "," << item <<",invalid\n";
+                    output_file << i << "," << item << "," << to_string(sample_status) << "\n";
                 }
                 
             }

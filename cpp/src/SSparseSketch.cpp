@@ -59,12 +59,15 @@ SSparseRecoveryResult SSparseSketch::recover() const{
 
             auto recovered = cell.recover();
             
-            if(recovered.has_value()){
-                unique_candidates.insert(recovered.value());
+            if(recovered.status != RecoveryStatus::Empty){
+                saw_non_empty_cell = true;
             }
-            
-        }
-        
+
+            if (recovered.status == RecoveryStatus::Success && recovered.item.has_value())
+            {
+                unique_candidates.insert(recovered.item.value());
+            }
+        } 
     }
 
     std::vector<std::int64_t>candidates(unique_candidates.begin(), 
@@ -74,9 +77,7 @@ SSparseRecoveryResult SSparseSketch::recover() const{
 
     if(!saw_non_empty_cell){
         return SSparseRecoveryResult{
-            false,
-            true,
-            false,
+            RecoveryStatus::Empty,
             candidates
         };
     }
@@ -84,9 +85,7 @@ SSparseRecoveryResult SSparseSketch::recover() const{
     if (candidates.empty())
     {
         return SSparseRecoveryResult{
-            false,
-            false,
-            false,
+            RecoveryStatus::RecoveryFailure,
             candidates
         };
     }
@@ -94,18 +93,14 @@ SSparseRecoveryResult SSparseSketch::recover() const{
     if (candidates.size() > sparsity_)
     {
         return SSparseRecoveryResult{
-            false,
-            false,
-            true,
+            RecoveryStatus::TooDense,
             candidates
         };
     }
 
     return SSparseRecoveryResult{
-        true,
-        false,
-        false,
-        candidates
+        RecoveryStatus::Success,
+            candidates
     };
     
 }

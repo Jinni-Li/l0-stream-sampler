@@ -1,17 +1,10 @@
 #pragma once
 #include "OneSparseSketch.hpp"
+#include "SamplerStatus.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <vector>
-
-struct SSparseRecoveryResult
-{
-    bool success;
-    bool empty;
-    bool too_dense;
-    std::vector<std::int64_t> candidates;
-};
 
 class SSparseSketch
 {

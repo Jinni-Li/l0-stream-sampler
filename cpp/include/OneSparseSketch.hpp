@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include<optional>
+#include "SamplerStatus.hpp"
 
 class OneSparseSketch
 {
@@ -20,7 +21,7 @@ public:
     
     void update(std::int64_t item_id, std::int64_t delta);
 
-    std::optional<std::int64_t> recover() const;
+    OneSparseRecoveryResult recover() const;
 
     bool empty() const;
 };

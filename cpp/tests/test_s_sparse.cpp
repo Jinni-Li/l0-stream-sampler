@@ -14,7 +14,7 @@ int main(){
 
         auto result = sketch.recover();
 
-        if (result.success || !result.empty || !result.candidates.empty())
+        if (result.status != RecoveryStatus::Empty || !result.candidates.empty())
         {
             std::cerr << "Test 1 failed: expected empty sketch\n";
             return 1;
@@ -27,7 +27,7 @@ int main(){
 
         auto result = sketch.recover();
 
-        if (!result.success || result.empty || result.too_dense)
+        if (result.status != RecoveryStatus::Success)
         {
             std::cerr << "Test 2 failed: expected successful recovery\n";
             return 1;
@@ -46,7 +46,7 @@ int main(){
 
         auto result = sketch.recover();
 
-        if (!result.success) {
+        if (result.status != RecoveryStatus::Success) {
             std::cerr << "Test 3 failed: expected successful recovery for two items\n";
             return 1;
         }
@@ -64,7 +64,7 @@ int main(){
 
         auto result = sketch.recover();
 
-        if (!result.success || !contains(result.candidates, 1001)) {
+        if (result.status != RecoveryStatus::Success || !contains(result.candidates, 1001)) {
             std::cerr << "Test 4 failed: expected to recover partially cancelled item 1001\n";
             return 1;
         }
@@ -73,7 +73,7 @@ int main(){
 
         auto empty_result = sketch.recover();
 
-        if (empty_result.success || !empty_result.empty) {
+        if (empty_result.status != RecoveryStatus::Empty) {
             std::cerr << "Test 4 failed: expected empty sketch after full cancellation\n";
             return 1;
         }
@@ -87,7 +87,7 @@ int main(){
 
         auto result = sketch.recover();
 
-        if (!result.too_dense) {
+        if (result.status != RecoveryStatus::TooDense) {
             std::cerr << "Test 5 failed: expected too_dense when recovering more than s items\n";
             return 1;
         }

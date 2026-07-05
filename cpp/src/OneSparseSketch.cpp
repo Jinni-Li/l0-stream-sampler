@@ -12,22 +12,39 @@ void OneSparseSketch::update(std::int64_t item_id, std::int64_t delta){
     fingerprint_ = (fingerprint_ + (delta_mod * item_power) %PRIME) %PRIME;
 }
 
-std::optional<std::int64_t>OneSparseSketch::recover() const{
-    if (phi_ == 0)
+OneSparseRecoveryResult OneSparseSketch::recover() const{
+    if (empty())
     {
-        return std::nullopt;
+        return OneSparseRecoveryResult{
+            RecoveryStatus::Empty,
+            std::nullopt
+        };
+    }
+
+    if (phi_==0)
+    {
+        return OneSparseRecoveryResult{
+            RecoveryStatus::InvalidCandidate,
+            std::nullopt
+        };
     }
     
     if (iota_%phi_ != 0)
     {
-        return std::nullopt;
+        return OneSparseRecoveryResult{
+            RecoveryStatus::InvalidCandidate,
+            std::nullopt
+        };
     }
 
     std::int64_t canditate = iota_/phi_;
 
     if (canditate < 0)
     {
-        return std::nullopt;
+        return OneSparseRecoveryResult{
+            RecoveryStatus::InvalidCandidate,
+            std::nullopt
+        };
     }
 
 
@@ -39,10 +56,16 @@ std::optional<std::int64_t>OneSparseSketch::recover() const{
 
     if (fingerprint_ == expected_fingerprint)
     {
-        return canditate;
+        return OneSparseRecoveryResult{
+            RecoveryStatus::Success,
+            canditate
+        };
     }
 
-    return std::nullopt;
+    return OneSparseRecoveryResult{
+        RecoveryStatus::FingerprintMismatch,
+        std::nullopt
+    };
 }
 
 

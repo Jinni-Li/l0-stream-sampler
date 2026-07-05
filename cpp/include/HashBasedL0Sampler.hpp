@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SSparseSketch.hpp"
+#include "SamplerStatus.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -12,7 +13,7 @@ public:
 
     void update(std::int64_t item_id, std::int64_t delta);
 
-    std::optional<std::int64_t> sample() const;
+    SampleResult sample() const;
 
     std::size_t num_levels() const;
 

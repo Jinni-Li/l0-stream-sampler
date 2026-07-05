@@ -2,12 +2,21 @@
 
 #include <algorithm>
 #include <vector>
+#include <stdexcept>
+#include <cstddef>
 
 HashBasedL0Sampler::HashBasedL0Sampler(
     std::size_t num_levels,
     std::uint64_t seed
 )
     :seed_(seed) {
+
+        if (num_levels == 0)
+        {
+            throw std::invalid_argument("num_levels must be greater than zero");
+        }
+        
+
         levels_.reserve(num_levels);
         const std::size_t sparsity = 4;
         const std::size_t rows = 4;
@@ -38,21 +47,33 @@ void HashBasedL0Sampler::update(std::int64_t item_id, std::int64_t delta) {
     }
 }
 
-std::optional<std::int64_t> HashBasedL0Sampler::sample() const {
+SampleResult HashBasedL0Sampler::sample() const {
 
     std::vector<std::int64_t> candidates;
+
+    bool saw_non_empty_level = false;
+    bool saw_recovery_problem = false;
 
     for (std::size_t i = levels_.size(); i > 0; --i) {
         std::size_t level = i - 1;
 
         auto recovered = levels_[level].recover();
 
-        if (!recovered.success)
+        if (recovered.status == RecoveryStatus::Empty)
         {
             continue;
         }
+
+        saw_non_empty_level = true;
+
+        if (recovered.status != RecoveryStatus::Success)
+        {
+            saw_recovery_problem = true;
+            continue;
+        }
         
-        for (std::int64_t candidate:recovered.candidates)
+        
+        for (std::int64_t candidate : recovered.candidates)
         {
             if (std::find(candidates.begin(), candidates.end(), candidate) == candidates.end())
             {
@@ -64,9 +85,31 @@ std::optional<std::int64_t> HashBasedL0Sampler::sample() const {
         
     if (candidates.empty())
     {
-        return std::nullopt;
-    }
+        if (!saw_non_empty_level)
+        {
+            return SampleResult{
+                SampleStatus::EmptySupport,
+                std::nullopt,
+                candidates
+            };
+        }
+
+        if (saw_recovery_problem)
+        {
+            return SampleResult{
+                SampleStatus::RecoveryFailure,
+                std::nullopt,
+                candidates
+            };
+        }
+
+        return SampleResult{
+            SampleStatus::NoRecoverableLevel,
+            std::nullopt,
+            candidates
+        };
         
+    }    
 
     std::int64_t best_candidate = candidates.front();
     std::uint64_t best_hash = selection_hash(best_candidate);
@@ -81,7 +124,11 @@ std::optional<std::int64_t> HashBasedL0Sampler::sample() const {
             best_hash = candidate_hash;
         }
     }
-    return best_candidate;
+    return SampleResult{
+        SampleStatus::Success,
+        best_candidate,
+        candidates
+    };
 }
 
 std::size_t HashBasedL0Sampler::num_levels() const {

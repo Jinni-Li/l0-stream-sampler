@@ -9,7 +9,7 @@ int main() {
 
         auto recovered = sketch.recover();
 
-        if (!recovered.has_value() || recovered.value() != 17) {
+        if (recovered.status != RecoveryStatus::Success || !recovered.item.has_value() || recovered.item.value() != 17) {
             std::cerr << "Test 1 failed: expected to recover 17\n";
             return 1;
         }
@@ -22,7 +22,7 @@ int main() {
 
         auto recovered = sketch.recover();
 
-        if (recovered.has_value()) {
+        if (recovered.status != RecoveryStatus::Empty||recovered.item.has_value()) {
             std::cerr << "Test 2 failed: expected empty/failure\n";
             return 1;
         }
@@ -35,7 +35,7 @@ int main() {
 
         auto recovered = sketch.recover();
 
-        if (recovered.has_value()) {
+        if (recovered.status == RecoveryStatus::Success||recovered.item.has_value()) {
             std::cerr << "Test 3 failed: expected failure for two active items\n";
             return 1;
         }
@@ -48,7 +48,7 @@ int main() {
 
         auto recovered = sketch.recover();
 
-        if (!recovered.has_value() || recovered.value() != 1001) {
+        if (recovered.status != RecoveryStatus::Success ||!recovered.item.has_value() || recovered.item.value() != 1001) {
             std::cerr << "Test 4 failed: expected to recover 1001\n";
             return 1;
         }
