@@ -1,4 +1,5 @@
 #include "PairwiseHash.hpp"
+#include "HashUtils.hpp"
 
 PairwiseHash::PairwiseHash(std::uint64_t seed, std::uint64_t range): range_(range){
     if (range_ == 0)
@@ -6,8 +7,8 @@ PairwiseHash::PairwiseHash(std::uint64_t seed, std::uint64_t range): range_(rang
         throw std::invalid_argument("PairwiseHash range must be greater than zero");
     }
 
-    a_ = splitmix64(seed) % PRIME;
-    b_ = splitmix64(seed + 0x9e3779b97f4a7c15ULL) % PRIME;
+    a_ = hash_utils::splitmix64(seed) % PRIME;
+    b_ = hash_utils::splitmix64(seed + 0x9e3779b97f4a7c15ULL) % PRIME;
 
     if (a_ == 0)
     {
@@ -26,13 +27,6 @@ std::uint64_t PairwiseHash::operator()(std::int64_t item_id) const{
 
 std::uint64_t PairwiseHash::range() const{
     return range_;
-}
-
-std::uint64_t PairwiseHash::splitmix64(std::uint64_t x) {
-    x += 0x9e3779b97f4a7c15ULL;
-    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
-    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
-    return x ^ (x >> 31);
 }
 
 std::uint64_t PairwiseHash::normalize_item(std::int64_t item_id){

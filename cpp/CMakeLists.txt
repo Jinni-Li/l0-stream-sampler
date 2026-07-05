@@ -16,6 +16,7 @@ add_executable(
     src/SSparseSketch.cpp
     src/HashBasedL0Sampler.cpp
     src/PairwiseHash.cpp
+    src/SplitMix64Hash.cpp
 )
 
 add_executable(
@@ -31,6 +32,7 @@ add_executable(
     src/OneSparseSketch.cpp
     src/SSparseSketch.cpp
     src/PairwiseHash.cpp
+    src/SplitMix64Hash.cpp
 )
 
 add_executable(
@@ -45,4 +47,10 @@ add_executable(
     test_pairwise_hash
     src/PairwiseHash.cpp
     tests/test_pairwise_hash.cpp
+)
+
+add_executable(
+    test_splitmix64_hash
+    tests/test_splitmix64_hash.cpp
+    src/SplitMix64Hash.cpp
 )

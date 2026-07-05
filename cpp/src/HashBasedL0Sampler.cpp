@@ -1,4 +1,5 @@
 #include "HashBasedL0Sampler.hpp"
+#include "SplitMix64Hash.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -9,7 +10,9 @@ HashBasedL0Sampler::HashBasedL0Sampler(
     std::size_t num_levels,
     std::uint64_t seed
 )
-    :seed_(seed) {
+    :seed_(seed),
+    sampling_hash_(std::make_unique<SplitMix64Hash>(seed)),
+    selection_hash_(std::make_unique<SplitMix64Hash>(seed^0xd1b54a32d192ed03ULL)) {
 
         if (num_levels == 0)
         {
@@ -136,21 +139,11 @@ std::size_t HashBasedL0Sampler::num_levels() const {
 }
 
 std::uint64_t HashBasedL0Sampler::hash_item(std::int64_t item_id) const {
-    std::uint64_t x = static_cast<std::uint64_t>(item_id);
-    return splitmix64(x ^ seed_);
+    return (*sampling_hash_)(item_id);
 }
 
 std::uint64_t HashBasedL0Sampler::selection_hash(std::int64_t item_id) const{
-    std::uint64_t x = static_cast<std::uint64_t>(item_id);
-    constexpr std::uint64_t selection_salt = 0xd1b54a32d192ed03ULL;
-    return splitmix64(x^seed_^selection_salt);
-}
-
-std::uint64_t HashBasedL0Sampler::splitmix64(std::uint64_t x) {
-    x += 0x9e3779b97f4a7c15ULL;
-    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
-    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
-    return x ^ (x >> 31);
+    return (*selection_hash_)(item_id);
 }
 
 std::size_t HashBasedL0Sampler::trailing_zeros(std::uint64_t x) {

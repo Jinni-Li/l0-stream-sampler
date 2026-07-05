@@ -2,7 +2,9 @@
 
 #include "SSparseSketch.hpp"
 #include "SamplerStatus.hpp"
+#include "HashFunction.hpp"
 
+#include <memory>
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -21,11 +23,11 @@ private:
     std::vector<SSparseSketch> levels_;
     std::uint64_t seed_;
 
-    std::uint64_t hash_item(std::int64_t item_id) const;
-    
-    std::uint64_t selection_hash(std::int64_t item_id) const;
+    std::unique_ptr<HashFunction> sampling_hash_;
+    std::unique_ptr<HashFunction> selection_hash_;
 
-    static std::uint64_t splitmix64(std::uint64_t x);
+    std::uint64_t hash_item(std::int64_t item_id) const;
+    std::uint64_t selection_hash(std::int64_t item_id) const;
 
     static std::size_t trailing_zeros(std::uint64_t x);
 

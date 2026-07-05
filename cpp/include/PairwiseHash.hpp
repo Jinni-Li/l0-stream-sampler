@@ -1,12 +1,14 @@
 #pragma once
 
+#include "HashFunction.hpp"
+
 #include <cstdint>
 #include <stdexcept>
 
-class PairwiseHash{
+class PairwiseHash : public HashFunction{
     public:
     PairwiseHash(std::uint64_t seed, std::uint64_t range);
-    std::uint64_t operator()(std::int64_t item_id) const;
+    std::uint64_t operator()(std::int64_t item_id) const override;
     std::uint64_t range() const;
 
     private:
@@ -16,7 +18,6 @@ class PairwiseHash{
     std::uint64_t b_;
     std::uint64_t range_;
 
-    static std::uint64_t splitmix64(std::uint64_t x);
     static std::uint64_t normalize_item(std::int64_t item_id);
 
     static std::uint64_t mod_multiply(
