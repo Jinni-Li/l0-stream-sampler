@@ -28,6 +28,16 @@ table_(rows,std::vector<OneSparseSketch>(buckets)){
         throw std::invalid_argument("buckets must be greater than zero");
     }
 
+    bucket_hashes_.reserve(rows_);
+
+    for (std::size_t row = 0; row < rows_; ++row)
+    {
+        bucket_hashes_.emplace_back(
+            seed_ + 0x9e3779b97f4a7c15ULL * static_cast<std::int64_t>(row+1),
+            buckets_
+        );
+    }
+    
 }
 
 void SSparseSketch::update(std::int64_t item_id, std::int64_t delta){
@@ -118,21 +128,9 @@ std::size_t SSparseSketch::buckets() const{
 }
 
 std::size_t SSparseSketch::bucket_for(std::size_t row, std::int64_t item_id) const{
-    std::uint64_t x = static_cast<std::uint64_t>(item_id);
-
-    std::uint64_t row_salt = 0x9e3779b97f4a7c15ULL * static_cast<std::uint64_t>(row + 1);
-
-    std::uint64_t mixed = splitmix64(x^seed_^row_salt);
-
-    return static_cast<std::size_t>(mixed % buckets_);
+    return static_cast<std::size_t>(bucket_hashes_[row](item_id));
 }
 
-std::uint64_t SSparseSketch::splitmix64(std::uint64_t x){
-    x += 0x9e3779b97f4a7c15ULL;
-    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
-    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
-    return x ^ (x >> 31);
-}
 
 
 

@@ -1,6 +1,7 @@
 #pragma once
 #include "OneSparseSketch.hpp"
 #include "SamplerStatus.hpp"
+#include "PairwiseHash.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -31,7 +32,7 @@ class SSparseSketch
         std::uint64_t seed_;
 
         std::vector<std::vector<OneSparseSketch>> table_;
-
+        std::vector<PairwiseHash>bucket_hashes_;
+        
         std::size_t bucket_for(std::size_t row, std::int64_t item_id) const;
-        static std::uint64_t splitmix64(std::uint64_t x);
 };

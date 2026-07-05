@@ -15,6 +15,7 @@ add_executable(
     src/OneSparseSketch.cpp
     src/SSparseSketch.cpp
     src/HashBasedL0Sampler.cpp
+    src/PairwiseHash.cpp
 )
 
 add_executable(
@@ -29,6 +30,7 @@ add_executable(
     src/HashBasedL0Sampler.cpp
     src/OneSparseSketch.cpp
     src/SSparseSketch.cpp
+    src/PairwiseHash.cpp
 )
 
 add_executable(
@@ -36,4 +38,11 @@ add_executable(
     tests/test_s_sparse.cpp
     src/SSparseSketch.cpp
     src/OneSparseSketch.cpp
+    src/PairwiseHash.cpp
+)
+
+add_executable(
+    test_pairwise_hash
+    src/PairwiseHash.cpp
+    tests/test_pairwise_hash.cpp
 )
