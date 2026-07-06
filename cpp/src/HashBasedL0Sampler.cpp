@@ -1,5 +1,6 @@
 #include "HashBasedL0Sampler.hpp"
 #include "SplitMix64Hash.hpp"
+#include "KWisePolynomialHash.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -11,8 +12,7 @@ HashBasedL0Sampler::HashBasedL0Sampler(
     std::uint64_t seed
 )
     :seed_(seed),
-    sampling_hash_(std::make_unique<SplitMix64Hash>(seed)),
-    selection_hash_(std::make_unique<SplitMix64Hash>(seed^0xd1b54a32d192ed03ULL)) {
+    paper_hash_(std::make_unique<KWisePolynomialHash>(seed, 3)) { // Degree 3 gives a 4-wise-style polynomial hash family for selection.
 
         if (num_levels == 0)
         {
@@ -40,14 +40,27 @@ void HashBasedL0Sampler::update(std::int64_t item_id, std::int64_t delta) {
     }
 
     std::uint64_t hash_value = hash_item(item_id);
-    std::size_t item_level = trailing_zeros(hash_value);
 
-    std::size_t max_level =
-        std::min(item_level, levels_.size() - 1);
+    for (std::size_t level = 0; level <= levels_.size(); ++level) {
+        if (!included_in_level(hash_value,level))
+        {
+            break;
+        }
 
-    for (std::size_t level = 0; level <= max_level; ++level) {
         levels_[level].update(item_id, delta);
+        
     }
+}
+
+bool HashBasedL0Sampler::included_in_level(std::uint64_t hash_value, std::size_t level){
+    if (level >= 61)
+    {
+        return hash_value == 0;
+    }
+
+    std::uint64_t threshold = KWisePolynomialHash::prime() >> level;
+
+    return hash_value < threshold;
 }
 
 SampleResult HashBasedL0Sampler::sample() const {
@@ -139,24 +152,9 @@ std::size_t HashBasedL0Sampler::num_levels() const {
 }
 
 std::uint64_t HashBasedL0Sampler::hash_item(std::int64_t item_id) const {
-    return (*sampling_hash_)(item_id);
+    return (*paper_hash_)(item_id);
 }
 
 std::uint64_t HashBasedL0Sampler::selection_hash(std::int64_t item_id) const{
-    return (*selection_hash_)(item_id);
-}
-
-std::size_t HashBasedL0Sampler::trailing_zeros(std::uint64_t x) {
-    if (x == 0) {
-        return 64;
-    }
-
-    std::size_t count = 0;
-
-    while ((x & 1ULL) == 0) {
-        ++count;
-        x >>= 1;
-    }
-
-    return count;
+    return (*paper_hash_)(item_id);
 }

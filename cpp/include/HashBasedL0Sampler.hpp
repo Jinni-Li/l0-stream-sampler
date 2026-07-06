@@ -23,12 +23,10 @@ private:
     std::vector<SSparseSketch> levels_;
     std::uint64_t seed_;
 
-    std::unique_ptr<HashFunction> sampling_hash_;
-    std::unique_ptr<HashFunction> selection_hash_;
+    std::unique_ptr<HashFunction> paper_hash_;
 
     std::uint64_t hash_item(std::int64_t item_id) const;
     std::uint64_t selection_hash(std::int64_t item_id) const;
 
-    static std::size_t trailing_zeros(std::uint64_t x);
-
+    static bool included_in_level(std::uint64_t hash_value, std::size_t level);
 };

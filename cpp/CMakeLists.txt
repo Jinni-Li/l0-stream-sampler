@@ -17,6 +17,7 @@ add_executable(
     src/HashBasedL0Sampler.cpp
     src/PairwiseHash.cpp
     src/SplitMix64Hash.cpp
+    src/KWisePolynomialHash.cpp
 )
 
 add_executable(
@@ -33,6 +34,7 @@ add_executable(
     src/SSparseSketch.cpp
     src/PairwiseHash.cpp
     src/SplitMix64Hash.cpp
+    src/KWisePolynomialHash.cpp
 )
 
 add_executable(
@@ -53,4 +55,10 @@ add_executable(
     test_splitmix64_hash
     tests/test_splitmix64_hash.cpp
     src/SplitMix64Hash.cpp
+)
+
+add_executable(
+    test_k_wise_polynomial_hash
+    tests/test_k_wise_polynomial_hash.cpp
+    src/KWisePolynomialHash.cpp
 )
