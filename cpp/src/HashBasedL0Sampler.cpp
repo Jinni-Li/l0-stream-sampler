@@ -1,35 +1,37 @@
 #include "HashBasedL0Sampler.hpp"
-#include "SplitMix64Hash.hpp"
 #include "KWisePolynomialHash.hpp"
+#include "HashUtils.hpp"
 
 #include <algorithm>
 #include <vector>
 #include <stdexcept>
 #include <cstddef>
+#include <memory>
+
+namespace {
+
+SamplerConfig validated_config(SamplerConfig config) {
+    config.validate();
+    return config;
+}
+
+}
 
 HashBasedL0Sampler::HashBasedL0Sampler(
-    std::size_t num_levels,
-    std::uint64_t seed
+    const SamplerConfig& config
 )
-    :seed_(seed),
-    paper_hash_(std::make_unique<KWisePolynomialHash>(seed, 3)) { // Degree 3 gives a 4-wise-style polynomial hash family for selection.
+    :config_(validated_config(config)),
+    paper_hash_(std::make_unique<KWisePolynomialHash>(config_.seed, config_.polynomial_degree)) { 
 
-        if (num_levels == 0)
+        levels_.reserve(config_.num_levels);
+
+        for (std::size_t level = 0; level < config_.num_levels; ++level)
         {
-            throw std::invalid_argument("num_levels must be greater than zero");
-        }
-        
-
-        levels_.reserve(num_levels);
-        const std::size_t sparsity = 4;
-        const std::size_t rows = 4;
-        const std::size_t buckets = 8;
-
-        for (std::size_t level = 0; level < num_levels; ++level)
-        {
-            levels_.emplace_back(
-                sparsity,rows, buckets, seed_ + static_cast<std::uint64_t>(level)
-            );
+            const std::uint64_t levels_seed = hash_utils::splitmix64(config_.seed + 
+                0x9e3779b97f4a7c15ULL * static_cast<std::uint64_t>(level + 1));
+            
+            levels_.emplace_back(config_.sparsity, config_.recovery_rows, 
+                config_.recovery_buckets,levels_seed);
         }
         
     }
@@ -39,9 +41,9 @@ void HashBasedL0Sampler::update(std::int64_t item_id, std::int64_t delta) {
         return;
     }
 
-    std::uint64_t hash_value = hash_item(item_id);
+    const std::uint64_t hash_value = hash_item(item_id);
 
-    for (std::size_t level = 0; level <= levels_.size(); ++level) {
+    for (std::size_t level = 0; level < levels_.size(); ++level) {
         if (!included_in_level(hash_value,level))
         {
             break;
@@ -64,91 +66,19 @@ bool HashBasedL0Sampler::included_in_level(std::uint64_t hash_value, std::size_t
 }
 
 SampleResult HashBasedL0Sampler::sample() const {
-
-    std::vector<std::int64_t> candidates;
-
-    bool saw_non_empty_level = false;
-    bool saw_recovery_problem = false;
-
-    for (std::size_t i = levels_.size(); i > 0; --i) {
-        std::size_t level = i - 1;
-
-        auto recovered = levels_[level].recover();
-
-        if (recovered.status == RecoveryStatus::Empty)
-        {
-            continue;
-        }
-
-        saw_non_empty_level = true;
-
-        if (recovered.status != RecoveryStatus::Success)
-        {
-            saw_recovery_problem = true;
-            continue;
-        }
-        
-        
-        for (std::int64_t candidate : recovered.candidates)
-        {
-            if (std::find(candidates.begin(), candidates.end(), candidate) == candidates.end())
-            {
-                candidates.push_back(candidate);
-            }
-            
-        }
+    if (config_.recovery_mode == RecoveryMode::FixedLevel) {
+        return sample_fixed_level();
     }
-        
-    if (candidates.empty())
-    {
-        if (!saw_non_empty_level)
-        {
-            return SampleResult{
-                SampleStatus::EmptySupport,
-                std::nullopt,
-                candidates
-            };
-        }
 
-        if (saw_recovery_problem)
-        {
-            return SampleResult{
-                SampleStatus::RecoveryFailure,
-                std::nullopt,
-                candidates
-            };
-        }
-
-        return SampleResult{
-            SampleStatus::NoRecoverableLevel,
-            std::nullopt,
-            candidates
-        };
-        
-    }    
-
-    std::int64_t best_candidate = candidates.front();
-    std::uint64_t best_hash = selection_hash(best_candidate);
-
-    for (std::int64_t candidate:candidates)
-    {
-        std::uint64_t candidate_hash = selection_hash(candidate);
-
-        if (candidate_hash < best_hash)
-        {
-            best_candidate = candidate;
-            best_hash = candidate_hash;
-        }
-    }
-    return SampleResult{
-        SampleStatus::Success,
-        best_candidate,
-        candidates
-    };
+    return sample_greedy();
 }
 
-std::size_t HashBasedL0Sampler::num_levels() const {
+std::size_t HashBasedL0Sampler::num_levels() const noexcept {
     return levels_.size();
+}
+
+const SamplerConfig& HashBasedL0Sampler::config() const noexcept {
+    return config_;
 }
 
 std::uint64_t HashBasedL0Sampler::hash_item(std::int64_t item_id) const {
@@ -157,4 +87,105 @@ std::uint64_t HashBasedL0Sampler::hash_item(std::int64_t item_id) const {
 
 std::uint64_t HashBasedL0Sampler::selection_hash(std::int64_t item_id) const{
     return (*paper_hash_)(item_id);
+}
+
+SampleResult HashBasedL0Sampler::select_candidate(
+    const std::vector<std::int64_t>& candidates
+) const {
+    if (candidates.empty()) {
+        return SampleResult{
+            SampleStatus::NoRecoverableLevel,
+            std::nullopt,
+            candidates
+        };
+    }
+
+    std::int64_t best_candidate = candidates.front();
+    std::uint64_t best_hash =
+        selection_hash(best_candidate);
+
+    for (const std::int64_t candidate : candidates) {
+        const std::uint64_t candidate_hash =
+            selection_hash(candidate);
+
+        if (candidate_hash < best_hash) {
+            best_candidate = candidate;
+            best_hash = candidate_hash;
+        }
+    }
+
+    return SampleResult{
+        SampleStatus::Success,
+        best_candidate,
+        candidates
+    };
+}
+
+SampleResult HashBasedL0Sampler::sample_fixed_level() const {
+    const auto recovered =
+        levels_[config_.fixed_level].recover();
+
+    if (recovered.status == RecoveryStatus::Empty) {
+        return SampleResult{
+            SampleStatus::NoRecoverableLevel,
+            std::nullopt,
+            recovered.candidates
+        };
+    }
+
+    if (recovered.status != RecoveryStatus::Success) {
+        return SampleResult{
+            SampleStatus::RecoveryFailure,
+            std::nullopt,
+            recovered.candidates
+        };
+    }
+
+    return select_candidate(recovered.candidates);
+}
+
+SampleResult HashBasedL0Sampler::sample_greedy() const {
+    bool saw_non_empty_level = false;
+    bool saw_recovery_problem = false;
+
+    for (std::size_t i = levels_.size(); i > 0; --i) {
+        const std::size_t level = i - 1;
+
+        const auto recovered = levels_[level].recover();
+
+        if (recovered.status == RecoveryStatus::Empty) {
+            continue;
+        }
+
+        saw_non_empty_level = true;
+
+        if (recovered.status != RecoveryStatus::Success) {
+            saw_recovery_problem = true;
+            continue;
+        }
+
+        return select_candidate(recovered.candidates);
+    }
+
+    if (!saw_non_empty_level) {
+        return SampleResult{
+            SampleStatus::EmptySupport,
+            std::nullopt,
+            {}
+        };
+    }
+
+    if (saw_recovery_problem) {
+        return SampleResult{
+            SampleStatus::RecoveryFailure,
+            std::nullopt,
+            {}
+        };
+    }
+
+    return SampleResult{
+        SampleStatus::NoRecoverableLevel,
+        std::nullopt,
+        {}
+    };
 }

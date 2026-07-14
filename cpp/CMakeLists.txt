@@ -62,3 +62,14 @@ add_executable(
     tests/test_k_wise_polynomial_hash.cpp
     src/KWisePolynomialHash.cpp
 )
+
+add_executable(
+    test_sampler_config
+    tests/test_sampler_config.cpp
+)
+
+target_include_directories(
+    test_sampler_config
+    PRIVATE
+    include
+)
