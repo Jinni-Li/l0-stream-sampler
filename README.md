@@ -1,37 +1,24 @@
 # Streaming Analytics: L0-Sampling for Dynamic Turnstile Streams
 
-This MSc project implements and evaluates L0-sampling algorithms for dynamic
-turnstile data streams. In this model, updates may be positive or negative, and
-an L0-sampler should return an item from the final non-zero support.
+This MSc project implements and evaluates L0-sampling algorithms for dynamic turnstile data streams. In this model, updates may be positive or negative, and an L0-sampler should return an item from the final non-zero support.
 
-The repository currently contains a reproducible synthetic-data workflow, an
-exact baseline sampler, and a first hash-based C++ prototype built around
-1-sparse recovery sketches.
+The repository currently contains a reproducible synthetic-data workflow, an exact baseline sampler, and a configurable hash-based C++ implementation following the sampling, sparse-recovery, and selection structure of the Cormode–Firmani framework.
 
 ## Project Goal
 
-The goal is to build a reproducible implementation and evaluation workflow for
-testing sampler correctness, empirical uniformity, failure probability, runtime,
-and memory use.
+The goal is to build a reproducible implementation and evaluation workflow for testing sampler correctness, empirical uniformity, failure probability, runtime, and memory use.
 
-Controlled synthetic streams with known final support are the primary
-validation data. LOBSTER financial order-book data is kept as a later applied
-case study.
+Controlled synthetic streams with known final support are the primary validation data. LOBSTER financial order-book data is kept as a later applied case study.
 
 ## Current Status
 
-- Python scripts generate and validate strict-turnstile synthetic streams.
-- Included synthetic datasets currently validate successfully:
-  `tiny_01.csv`, `multi_tiny.csv`, and `multi_support_100.csv`.
-- C++ code includes CSV loading, exact support tracking, an exact baseline
-  sampler, a `OneSparseSketch`, and a first `HashBasedL0Sampler`.
-- The C++ experiment runner supports `baseline` and `hash` modes and can write
-  trial-level CSV output.
-- The hash-based prototype returns valid support items when recovery succeeds,
-  but it can fail because each level currently uses only one 1-sparse sketch.
-
-The next main algorithmic milestone is replacing the per-level
-`OneSparseSketch` with an `s`-sparse recovery structure.
+- Python scripts generate and validate strict-turnstile synthetic streams with known final support.
+- Included synthetic datasets include `tiny_01.csv`, `multi_tiny.csv`, and `multi_support_100.csv`.
+- The C++ implementation includes CSV loading, exact support tracking, an exact baseline sampler, `OneSparseSketch`, `SSparseSketch`, configurable hash families, and `HashBasedL0Sampler`.
+- Sampler parameters are managed through `SamplerConfig`, including the number of levels, sparsity, recovery rows and buckets, polynomial degree, seed, and recovery mode.
+- The experiment runner supports exact baseline, greedy recovery, and fixed-level recovery, with trial-level CSV output.
+- Initial synthetic experiments measure validity, recovery success, fixed-level behaviour, and empirical sampling frequencies.
+- Current recovery and uniformity results are preliminary while complete sparse-recovery validation is being audited.
 
 ## Repository Structure
 
@@ -39,14 +26,13 @@ The next main algorithmic milestone is replacing the per-level
   and sketches.
 - `cpp/src/` - C++ implementations and the command-line experiment runner.
 - `cpp/tests/` - executable C++ regression tests.
-- `scripts/` - synthetic-data generation, validation, and LOBSTER sample
-  inspection scripts.
+- `scripts/` - synthetic-data generation, validation, experiment execution,
+  result analysis, and LOBSTER inspection scripts.
 - `tests/` - Python `unittest` regression tests for generation and validation.
 - `data/synthetic/` - small reproducible synthetic streams and expected support
   files.
 - `data/raw/` - local raw datasets such as LOBSTER samples.
 - `data/processed/` - local derived datasets and conversions.
-- `experiments/` - experiment documentation and future configuration files.
 - `results/` - validation summaries and trial-level experiment outputs.
 - `src/` - reserved for a future Python package; currently empty.
 
@@ -117,6 +103,7 @@ extensions. On macOS or Linux, omit `.exe` in the commands below.
 ```bash
 ./cpp/build/test_one_sparse.exe
 ./cpp/build/test_hash_based.exe
+./cpp/build/test_sampler_config.exe
 ```
 
 ## Run Sampling Experiments
@@ -125,27 +112,48 @@ The main executable accepts:
 
 ```text
 l0_sampler <path_to_csv> [trials] [output_csv] [baseline|hash]
+    [--levels N]
+    [--sparsity N]
+    [--rows N]
+    [--buckets N]
+    [--degree N]
+    [--seed N]
+    [--recovery greedy|fixed]
+    [--fixed-level N]
 ```
 
 Run the exact baseline sampler:
 
 ```bash
-./cpp/build/l0_sampler.exe data/synthetic/tiny_01.csv 1000 results/experiments/tiny_baseline_trials.csv baseline
+./cpp/build/l0_sampler.exe \
+    data/synthetic/multi_support_100.csv \
+    1000 \
+    results/experiments/support100_baseline.csv \
+    baseline \
+    --seed 123
 ```
 
-Run the hash-based prototype:
+Run the hash-based sampler with greedy recovery:
 
 ```bash
-./cpp/build/l0_sampler.exe data/synthetic/tiny_01.csv 1000 results/experiments/tiny_hash_trials.csv hash
+./cpp/build/l0_sampler.exe \
+    data/synthetic/multi_support_100.csv \
+    1000 \
+    results/experiments/support100_greedy.csv \
+    hash \
+    --recovery greedy \
+    --seed 123
 ```
 
-The optional output CSV contains one row per trial:
+The optional output CSV contains one row per trial, including the sampled item, status, trial seed, sampler configuration, recovery mode, and fixed level when applicable.
 
-```csv
-trial,sample,status
-```
+Possible status values include:
 
-The `status` value is `valid`, `invalid`, or `failure`.
+- `success`
+- `empty_support`
+- `no_recoverable_level`
+- `recovery_failure`
+- `invalid_sample`
 
 ## LOBSTER Sample Inspection
 
@@ -170,11 +178,8 @@ experiment outputs when they are useful for reproducibility.
 
 ## Known Limitations
 
-- The exact baseline sampler stores the final support explicitly and is used as
-  a correctness reference, not as the final streaming-efficient algorithm.
-- The current hash-based prototype uses one `OneSparseSketch` per level, so
-  recovery only succeeds when a sampled level is exactly 1-sparse.
-- The hash prototype uses `SplitMix64` as a practical deterministic mixer; it is
-  not yet a full implementation of the theoretical independent hash families.
-- The experiment configuration schema and reusable Python package are still
-  future work.
+- The exact baseline stores the full final support and is used only as a correctness reference.
+- Complete sparse-recovery validation is currently being audited to ensure that partial candidate recovery cannot be classified as full success.
+- Polynomial-hash coefficients and fingerprint parameters use practical seeded pseudorandom construction; the implementation does not claim a formal reproduction of every independence assumption in the paper.
+- Current experiments focus on synthetic streams with known support. Runtime, memory, parameter sensitivity, and larger-scale paper-aligned experiments remain in progress.
+- LOBSTER order-book data is reserved for a later applied case study.
