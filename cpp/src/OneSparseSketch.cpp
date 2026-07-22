@@ -37,9 +37,9 @@ OneSparseRecoveryResult OneSparseSketch::recover() const{
         };
     }
 
-    std::int64_t canditate = iota_/phi_;
+    const std::int64_t candidate = iota_/phi_;
 
-    if (canditate < 0)
+    if (candidate < 0)
     {
         return OneSparseRecoveryResult{
             RecoveryStatus::InvalidCandidate,
@@ -48,17 +48,17 @@ OneSparseRecoveryResult OneSparseSketch::recover() const{
     }
 
 
-    std::uint64_t canditate_power = mod_pow(Z, static_cast<std::uint64_t>(canditate));
+    std::uint64_t candidate_power = mod_pow(Z, static_cast<std::uint64_t>(candidate));
 
-    std::int64_t phi_mod = mod_from_int(phi_);
+    const std::uint64_t phi_mod = mod_from_int(phi_);
 
-    std::uint64_t expected_fingerprint = (phi_mod * canditate_power) % PRIME;
+    std::uint64_t expected_fingerprint = (phi_mod * candidate_power) % PRIME;
 
     if (fingerprint_ == expected_fingerprint)
     {
         return OneSparseRecoveryResult{
             RecoveryStatus::Success,
-            canditate
+            RecoveredItem{candidate, phi_}
         };
     }
 

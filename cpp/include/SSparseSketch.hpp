@@ -30,6 +30,9 @@ class SSparseSketch
         std::size_t rows_;
         std::size_t buckets_;
         std::uint64_t seed_;
+        
+        std::uint64_t fingerprint_base_;
+        std::uint64_t level_fingerprint_;
 
         std::vector<std::vector<OneSparseSketch>> table_;
         std::vector<PairwiseHash>bucket_hashes_;

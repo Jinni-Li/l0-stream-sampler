@@ -1,8 +1,66 @@
 #include "SSparseSketch.hpp"
+#include "HashUtils.hpp"
 
 #include <algorithm>
 #include <stdexcept>
-#include <unordered_set>
+#include <unordered_map>
+#include <vector>
+
+namespace{
+    constexpr std::uint64_t FINGERPRINT_PRIME = 4294967291ULL;
+    constexpr std::uint64_t FINGERPRINT_SEED_SALT = 0xd6e8feb86659fd93ULL;
+
+    std::uint64_t mod_from_int(std::int64_t value){
+        const auto modulus = static_cast<std::int64_t>(FINGERPRINT_PRIME);
+
+        std::int64_t result = value % modulus;
+
+        if (result < 0){
+            result += modulus;
+        }
+
+        return static_cast<std::uint64_t>(result);
+    }
+
+
+    std::uint64_t mod_pow(std::uint64_t base, std::uint64_t exponent){
+        std::uint64_t result = 1;
+        base %= FINGERPRINT_PRIME;
+
+        while (exponent > 0)
+        {
+            if ((exponent & 1ULL) != 0ULL)
+            {
+                result = (result * base) % FINGERPRINT_PRIME;
+            }
+            
+            base = (base * base) % FINGERPRINT_PRIME;
+
+            exponent >>= 1U;
+        }
+        
+        return result;
+    }
+
+    std::uint64_t derive_fingerprint_base(std::uint64_t seed){
+        const std::uint64_t mixed = hash_utils::splitmix64(seed ^ FINGERPRINT_SEED_SALT);
+
+        //Avoid base 0 and 1.
+        return 2ULL + mixed % (FINGERPRINT_PRIME - 2ULL);
+    }
+
+    std::uint64_t fingerprint_term(
+        std::uint64_t base,
+        std::int64_t item_id,
+        std::int64_t frequency
+    ){
+        const std::uint64_t item_power = mod_pow(base, static_cast<std::uint64_t>(item_id));
+
+        const std::uint64_t frequency_mod = mod_from_int(frequency);
+
+        return (frequency_mod * item_power) % FINGERPRINT_PRIME;
+    }
+}
 
 SSparseSketch::SSparseSketch(
     std::size_t sparsity,
@@ -14,6 +72,8 @@ SSparseSketch::SSparseSketch(
 rows_(rows),
 buckets_(buckets),
 seed_(seed),
+fingerprint_base_(derive_fingerprint_base(seed)),
+level_fingerprint_(0),
 table_(rows,std::vector<OneSparseSketch>(buckets)){
 
     if(sparsity_ == 0){
@@ -45,6 +105,10 @@ void SSparseSketch::update(std::int64_t item_id, std::int64_t delta){
         return;
     }
 
+    const std::uint64_t term = fingerprint_term(fingerprint_base_, item_id, delta);
+
+    level_fingerprint_=(level_fingerprint_ + term) % FINGERPRINT_PRIME;
+
     for (std::size_t row = 0; row < rows_; ++row)
     {
         std::size_t bucket = bucket_for(row, item_id);
@@ -53,7 +117,7 @@ void SSparseSketch::update(std::int64_t item_id, std::int64_t delta){
 }
 
 SSparseRecoveryResult SSparseSketch::recover() const{
-    std::unordered_set<std::int64_t> unique_candidates;
+    std::unordered_map<std::int64_t, std::int64_t> unique_items;
     bool saw_non_empty_cell = false;
 
     for (std::size_t row = 0; row < rows_; ++row)
@@ -73,44 +137,84 @@ SSparseRecoveryResult SSparseSketch::recover() const{
                 saw_non_empty_cell = true;
             }
 
-            if (recovered.status == RecoveryStatus::Success && recovered.item.has_value())
+            if (recovered.status != RecoveryStatus::Success || !recovered.item.has_value())
             {
-                unique_candidates.insert(recovered.item.value());
+                continue;
+            }
+
+            const RecoveredItem& item = recovered.item.value();
+
+            const auto [iterator, inserted] = unique_items.emplace(item.item_id, item.frequency);
+
+            // same item recovered in different rows must have same final frequency
+
+            if (!inserted && iterator -> second != item.frequency)
+            {
+                return SSparseRecoveryResult{
+                    RecoveryStatus::RecoveryFailure, {}
+                };
             }
         } 
     }
 
-    std::vector<std::int64_t>candidates(unique_candidates.begin(), 
-    unique_candidates.end());
+    std::vector<RecoveredItem> recovered_items;
+    recovered_items.reserve(unique_items.size());
 
-    std::sort(candidates.begin(), candidates.end());
+    for (const auto& [item_id, frequency] : unique_items)
+    {
+        recovered_items.push_back(RecoveredItem{item_id, frequency});
+    }
+    
+
+    std::sort(recovered_items.begin(), recovered_items.end(),
+    [](const RecoveredItem& left, const RecoveredItem right) {
+        return left.item_id < right.item_id;
+    });
 
     if(!saw_non_empty_cell){
         return SSparseRecoveryResult{
             RecoveryStatus::Empty,
-            candidates
+            {}
         };
     }
 
-    if (candidates.empty())
+    if (recovered_items.empty())
     {
         return SSparseRecoveryResult{
             RecoveryStatus::RecoveryFailure,
-            candidates
+            {}
         };
     }
 
-    if (candidates.size() > sparsity_)
+    if (recovered_items.size() > sparsity_)
     {
         return SSparseRecoveryResult{
             RecoveryStatus::TooDense,
-            candidates
+            recovered_items
         };
     }
 
+    std::uint64_t recovered_fingerprint = 0;
+
+    for (const RecoveredItem& item : recovered_items)
+    {
+        const std::uint64_t term = fingerprint_term(fingerprint_base_,item.item_id, item.frequency);
+
+        recovered_fingerprint = (recovered_fingerprint + term) % FINGERPRINT_PRIME;
+    }
+
+    if (recovered_fingerprint != level_fingerprint_)
+    {
+        return SSparseRecoveryResult{
+            RecoveryStatus::IncompleteRecovery,
+            recovered_items
+        };
+    }
+    
+    
     return SSparseRecoveryResult{
         RecoveryStatus::Success,
-            candidates
+        recovered_items 
     };
     
 }

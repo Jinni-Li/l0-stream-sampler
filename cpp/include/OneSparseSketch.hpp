@@ -8,7 +8,7 @@ class OneSparseSketch
 private:
     std:: int64_t phi_;
     std:: int64_t iota_;
-    std:: int64_t fingerprint_;
+    std:: uint64_t fingerprint_;
 
     static constexpr std::uint64_t PRIME = 4294967291ULL;
     static constexpr std::uint64_t Z = 1000003ULL;
