@@ -365,6 +365,179 @@ int main() {
         }
     }
 
+
+    // Test 7: recovering more than s item s does not imply complete recovery
+
+    {
+        constexpr std::uint64_t seed = 2026;
+        constexpr std::size_t buckets = 8;
+        constexpr std::size_t sparsity = 2;
+        constexpr std::size_t required_isolated_items = 3;
+
+        const PairwiseHash row_hash = make_first_row_hash(seed, buckets);
+        std::vector<std::int64_t> first_even(buckets, -1);
+
+        std::vector<std:: int64_t> first_odd(buckets, -1);
+
+        std::int64_t collision_first = -1;
+        std::int64_t collision_second = -1;
+        std::size_t collision_bucket = buckets;
+
+        // Find two items with opposite parity in the same bucket.
+        // Their total frequency is 2, but their summed item IDs are odd, so the cell cannot be interpreted as 1-sparse.
+
+        for (
+            std::int64_t item = 1;
+            item < 10000;
+            ++item
+        ) {
+            const std::size_t bucket =
+                static_cast<std::size_t>(
+                    row_hash(item)
+                );
+
+            if ((item % 2) == 0) {
+                if (first_odd[bucket] != -1) {
+                    collision_first = first_odd[bucket];
+                    collision_second = item;
+                    collision_bucket = bucket;
+                    break;
+                }
+
+                if (first_even[bucket] == -1) {
+                    first_even[bucket] = item;
+                }
+            } else {
+                if (first_even[bucket] != -1) {
+                    collision_first = first_even[bucket];
+                    collision_second = item;
+                    collision_bucket = bucket;
+                    break;
+                }
+
+                if (first_odd[bucket] == -1) {
+                    first_odd[bucket] = item;
+                }
+            }
+        }
+
+        std::vector<bool> used_buckets(
+            buckets,
+            false
+        );
+
+        if (collision_bucket < buckets) {
+            used_buckets[collision_bucket] = true;
+        }
+
+        std::vector<std::int64_t> isolated_items;
+        isolated_items.reserve(required_isolated_items);
+
+        // Find three singleton items in three other buckets.
+        for (
+            std::int64_t item = 1;
+            item < 10000 &&
+            isolated_items.size() <
+                required_isolated_items;
+            ++item
+        ) {
+            if (
+                item == collision_first ||
+                item == collision_second
+            ) {
+                continue;
+            }
+
+            const std::size_t bucket =
+                static_cast<std::size_t>(
+                    row_hash(item)
+                );
+
+            if (used_buckets[bucket]) {
+                continue;
+            }
+
+            used_buckets[bucket] = true;
+            isolated_items.push_back(item);
+        }
+
+        if (
+            collision_first == -1 ||
+            collision_second == -1 ||
+            collision_bucket == buckets ||
+            isolated_items.size() !=
+                required_isolated_items
+        ) {
+            std::cerr
+                << "Test 7 failed: could not construct "
+                << "the incomplete dense recovery setup\n";
+            return 1;
+        }
+
+        SSparseSketch sketch(
+            sparsity,
+            1,       // one row
+            buckets,
+            seed
+        );
+
+        sketch.update(collision_first, 1);
+        sketch.update(collision_second, 1);
+
+        for (
+            const std::int64_t item :
+            isolated_items
+        ) {
+            sketch.update(item, 1);
+        }
+
+        const auto result = sketch.recover();
+
+        if (
+            result.status !=
+            RecoveryStatus::IncompleteRecovery
+        ) {
+            std::cerr
+                << "Test 7 failed: expected "
+                << "incomplete_recovery, got "
+                << to_string(result.status)
+                << '\n';
+            return 1;
+        }
+
+        if (
+            result.items.size() !=
+            required_isolated_items
+        ) {
+            std::cerr
+                << "Test 7 failed: expected three "
+                << "recovered singleton items, got "
+                << result.items.size()
+                << '\n';
+            return 1;
+        }
+
+        for (
+            const std::int64_t item :
+            isolated_items
+        ) {
+            if (
+                !contains_item_with_frequency(
+                    result.items,
+                    item,
+                    1
+                )
+            ) {
+                std::cerr
+                    << "Test 7 failed: missing isolated "
+                    << "item "
+                    << item
+                    << '\n';
+                return 1;
+            }
+        }
+    }
+    
     std::cout
         << "All SSparseSketch tests passed.\n";
 

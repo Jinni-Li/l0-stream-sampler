@@ -186,14 +186,6 @@ SSparseRecoveryResult SSparseSketch::recover() const{
         };
     }
 
-    if (recovered_items.size() > sparsity_)
-    {
-        return SSparseRecoveryResult{
-            RecoveryStatus::TooDense,
-            recovered_items
-        };
-    }
-
     std::uint64_t recovered_fingerprint = 0;
 
     for (const RecoveredItem& item : recovered_items)
@@ -211,6 +203,13 @@ SSparseRecoveryResult SSparseSketch::recover() const{
         };
     }
     
+    if (recovered_items.size() > sparsity_)
+    {
+        return SSparseRecoveryResult{
+            RecoveryStatus::TooDense,
+            recovered_items
+        };
+    }
     
     return SSparseRecoveryResult{
         RecoveryStatus::Success,
