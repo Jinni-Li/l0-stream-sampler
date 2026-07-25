@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <optional>
 #include <vector>
+#include <cstddef>
 
 enum class RecoveryStatus{
     Success,
@@ -83,9 +84,21 @@ struct SSparseRecoveryResult
     std::vector<RecoveredItem> items;
 };
 
+struct LevelRecoveryDiagnostic
+{
+    std::size_t level;
+    RecoveryStatus status;
+    std::size_t recovered_item_count;
+};
+
+
 struct SampleResult
 {
     SampleStatus status;
     std::optional<std::int64_t> item;
     std::vector<std::int64_t> candidates;
+
+    std::optional<std::size_t> selected_level = std::nullopt;
+
+    std::vector<LevelRecoveryDiagnostic> recovery_diagnostics;
 };

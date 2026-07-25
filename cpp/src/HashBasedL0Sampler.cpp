@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <cstddef>
 #include <memory>
+#include <utility>
 
 namespace {
 
@@ -139,33 +140,54 @@ SampleResult HashBasedL0Sampler::sample_fixed_level() const {
 
     const auto candidates = extract_candidate_ids(recovered.items);
 
+    const std::vector<LevelRecoveryDiagnostic> diagnostics{
+        LevelRecoveryDiagnostic{config_.fixed_level, 
+            recovered.status, recovered.items.size()}
+    };
+
     if (recovered.status == RecoveryStatus::Empty) {
-        return SampleResult{
+        SampleResult result{
             SampleStatus::NoRecoverableLevel,
             std::nullopt,
             candidates
         };
+
+        result.recovery_diagnostics = diagnostics;
+        return result;
     }
 
     if (recovered.status != RecoveryStatus::Success) {
-        return SampleResult{
+        SampleResult result{
             SampleStatus::RecoveryFailure,
             std::nullopt,
             candidates
         };
-    }
 
-    return select_candidate(candidates);
+        result.recovery_diagnostics = diagnostics;
+        return result;
+    }
+    SampleResult result = select_candidate(candidates);
+
+    result.selected_level = config_.fixed_level;
+    result.recovery_diagnostics = diagnostics;
+
+    return result;
 }
 
 SampleResult HashBasedL0Sampler::sample_greedy() const {
     bool saw_non_empty_level = false;
     bool saw_recovery_problem = false;
 
+    std::vector<LevelRecoveryDiagnostic>diagnostics;
+
     for (std::size_t i = levels_.size(); i > 0; --i) {
         const std::size_t level = i - 1;
 
         const auto recovered = levels_[level].recover();
+
+        diagnostics.push_back(LevelRecoveryDiagnostic{
+            level, recovered.status, recovered.items.size()
+        });
 
         if (recovered.status == RecoveryStatus::Empty) {
             continue;
@@ -180,28 +202,44 @@ SampleResult HashBasedL0Sampler::sample_greedy() const {
 
         const auto candidates = extract_candidate_ids(recovered.items);
 
-        return select_candidate(candidates);
+        SampleResult result = select_candidate(candidates);
+
+        result.selected_level = level;
+        result.recovery_diagnostics = std::move(diagnostics);
+
+        return result;
     }
 
     if (!saw_non_empty_level) {
-        return SampleResult{
+        SampleResult result{
             SampleStatus::EmptySupport,
             std::nullopt,
             {}
         };
+
+        result.recovery_diagnostics = std::move(diagnostics);
+
+        return result;
     }
 
     if (saw_recovery_problem) {
-        return SampleResult{
+        SampleResult result{
             SampleStatus::RecoveryFailure,
             std::nullopt,
             {}
         };
+        result.recovery_diagnostics = std::move(diagnostics);
+
+        return result;
     }
 
-    return SampleResult{
+    SampleResult result{
         SampleStatus::NoRecoverableLevel,
         std::nullopt,
         {}
     };
+
+    result.recovery_diagnostics = std::move(diagnostics);
+
+    return result;
 }
