@@ -11,7 +11,7 @@ add_executable(
     src/main.cpp
     src/CsvReader.cpp
     src/ExactSupportTracker.cpp
-    src/L0sampler.cpp
+    src/L0Sampler.cpp
     src/OneSparseSketch.cpp
     src/SSparseSketch.cpp
     src/HashBasedL0Sampler.cpp
