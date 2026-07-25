@@ -15,6 +15,18 @@ SamplerConfig validated_config(SamplerConfig config) {
     return config;
 }
 
+std::vector<std::int64_t> extract_candidate_ids(const std::vector<RecoveredItem>& items){
+    std::vector<std::int64_t> candidates;
+    candidates.reserve(items.size());
+
+    for (const RecoveredItem& item : items)
+    {
+        candidates.push_back(item.item_id);
+    }
+
+    return candidates;
+}
+
 }
 
 HashBasedL0Sampler::HashBasedL0Sampler(
@@ -125,11 +137,13 @@ SampleResult HashBasedL0Sampler::sample_fixed_level() const {
     const auto recovered =
         levels_[config_.fixed_level].recover();
 
+    const auto candidates = extract_candidate_ids(recovered.items);
+
     if (recovered.status == RecoveryStatus::Empty) {
         return SampleResult{
             SampleStatus::NoRecoverableLevel,
             std::nullopt,
-            recovered.candidates
+            candidates
         };
     }
 
@@ -137,11 +151,11 @@ SampleResult HashBasedL0Sampler::sample_fixed_level() const {
         return SampleResult{
             SampleStatus::RecoveryFailure,
             std::nullopt,
-            recovered.candidates
+            candidates
         };
     }
 
-    return select_candidate(recovered.candidates);
+    return select_candidate(candidates);
 }
 
 SampleResult HashBasedL0Sampler::sample_greedy() const {
@@ -164,7 +178,9 @@ SampleResult HashBasedL0Sampler::sample_greedy() const {
             continue;
         }
 
-        return select_candidate(recovered.candidates);
+        const auto candidates = extract_candidate_ids(recovered.items);
+
+        return select_candidate(candidates);
     }
 
     if (!saw_non_empty_level) {

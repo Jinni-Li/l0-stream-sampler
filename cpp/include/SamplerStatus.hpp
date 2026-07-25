@@ -10,6 +10,7 @@ enum class RecoveryStatus{
     TooDense,
     FingerprintMismatch,
     InvalidCandidate,
+    IncompleteRecovery,
     RecoveryFailure
 };
 
@@ -34,6 +35,8 @@ inline const char* to_string(RecoveryStatus status){
         return "fingerprint_mismatch";
     case RecoveryStatus::InvalidCandidate:
         return "invalid_candidate";
+    case RecoveryStatus::IncompleteRecovery:
+        return "incomplete_recovery";
     case RecoveryStatus::RecoveryFailure:
         return "recovery_failure";
     
@@ -61,16 +64,23 @@ inline const char* to_string(SampleStatus status){
     }
 }
 
+struct RecoveredItem
+{
+    std::int64_t item_id;
+    std::int64_t frequency;
+};
+
+
 struct OneSparseRecoveryResult
 {
     RecoveryStatus status;
-    std::optional<std::int64_t> item;
+    std::optional<RecoveredItem> item;
 };
 
 struct SSparseRecoveryResult
 {
     RecoveryStatus status;
-    std::vector<std::int64_t> candidates;
+    std::vector<RecoveredItem> items;
 };
 
 struct SampleResult

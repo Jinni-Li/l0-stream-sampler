@@ -17,7 +17,7 @@ PairwiseHash::PairwiseHash(std::uint64_t seed, std::uint64_t range): range_(rang
 }
 
 std::uint64_t PairwiseHash::operator()(std::int64_t item_id) const{
-    std::int64_t x = normalize_item(item_id);
+    const std::uint64_t x = normalize_item(item_id);
 
     std::uint64_t ax = mod_multiply(a_,x);
     std::uint64_t value = (ax+b_) %PRIME;
