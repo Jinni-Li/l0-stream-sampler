@@ -15,7 +15,33 @@
 #include <fstream>
 #include <unordered_map>
 #include <optional>
+#include <sstream>
+#include <utility>
 
+
+std::string serialize_recovery_diagnostics(
+    const std::vector<LevelRecoveryDiagnostic>& diagnostics
+) {
+    std::ostringstream output;
+
+    for (std::size_t i = 0; i < diagnostics.size(); ++i) {
+        if (i > 0) {
+            output << '|';
+        }
+
+        const LevelRecoveryDiagnostic& diagnostic =
+            diagnostics[i];
+
+        output
+            << diagnostic.level
+            << ':'
+            << to_string(diagnostic.status)
+            << ':'
+            << diagnostic.recovered_item_count;
+    }
+
+    return output.str();
+}
 
 int main(int argc, char* argv[]){
     if(argc < 2){
@@ -170,7 +196,8 @@ int main(int argc, char* argv[]){
                 << "trial,sample,status,"
                 << "num_levels,sparsity,recovery_rows,recovery_buckets,"
                 << "polynomial_degree,base_seed,trial_seed,"
-                << "recovery_mode,fixed_level\n";
+                << "recovery_mode,fixed_level,"
+                << "selected_level,recovery_attempts,recovery_trace\n";
         }
         
         std::unordered_map<std::int64_t, int> sampler_counts;
@@ -182,6 +209,8 @@ int main(int argc, char* argv[]){
         {
             std::optional<std::int64_t> sample_item;
             SampleStatus sample_status = SampleStatus::NoRecoverableLevel;
+            std::optional<std::size_t> selected_level = std::nullopt;
+            std::vector<LevelRecoveryDiagnostic> recovery_diagnostics;
 
             const std::uint64_t trial_seed =
                 base_config.seed + static_cast<std::uint64_t>(i);
@@ -199,6 +228,10 @@ int main(int argc, char* argv[]){
                 SampleResult sample = sampler.sample();
                 sample_item = sample.item;
                 sample_status = sample.status;
+                selected_level = sample.selected_level;
+
+                recovery_diagnostics = std::move(sample.recovery_diagnostics);
+
             } else {
                 L0Sampler sampler(trial_seed);
 
@@ -217,6 +250,12 @@ int main(int argc, char* argv[]){
                 
             }
 
+            const std::string selected_level_text = selected_level.has_value() ? std::to_string(selected_level.value()) : "";
+
+            const std::size_t recovery_attempts = recovery_diagnostics.size();
+
+            const std::string recovery_trace = serialize_recovery_diagnostics(recovery_diagnostics);
+
             if (!sample_item.has_value())
             {
                 failures ++;
@@ -233,7 +272,10 @@ int main(int argc, char* argv[]){
                         << base_config.seed << ","
                         << trial_seed << ","
                         << recovery_mode_string << ","
-                        << base_config.fixed_level <<"\n";
+                        << base_config.fixed_level << ","
+                        << selected_level_text << ","
+                        << recovery_attempts << ","
+                        << recovery_trace << "\n";
                 }
                 continue;
             }
@@ -259,7 +301,10 @@ int main(int argc, char* argv[]){
                         << base_config.seed << ","
                         << trial_seed << ","
                         << recovery_mode_string << ","
-                        << base_config.fixed_level <<"\n";
+                        << base_config.fixed_level << ","
+                        << selected_level_text << ","
+                        << recovery_attempts << ","
+                        << recovery_trace << "\n";
                 }
                 
 
@@ -281,7 +326,10 @@ int main(int argc, char* argv[]){
                         << base_config.seed << ","
                         << trial_seed << ","
                         << recovery_mode_string << ","
-                        << base_config.fixed_level <<"\n";
+                        << base_config.fixed_level << ","
+                        << selected_level_text << ","
+                        << recovery_attempts << ","
+                        << recovery_trace << "\n";
                 }
                 
             }

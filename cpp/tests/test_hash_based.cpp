@@ -42,6 +42,37 @@ int main() {
             std::cerr << "Test 2 failed: expected failure on empty support\n";
             return 1;
         }
+
+        if (sample.selected_level.has_value()) {
+            std::cerr
+                << "Test 2 failed: empty support selected a level\n";
+            return 1;
+        }
+
+        if (
+            sample.recovery_diagnostics.size() !=
+            config.num_levels
+        ) {
+            std::cerr
+                << "Test 2 failed: expected diagnostics "
+                << "for every level\n";
+            return 1;
+        }
+
+        for (
+            const LevelRecoveryDiagnostic& diagnostic :
+            sample.recovery_diagnostics
+        ) {
+            if (
+                diagnostic.status != RecoveryStatus::Empty ||
+                diagnostic.recovered_item_count != 0
+            ) {
+                std::cerr
+                    << "Test 2 failed: expected every level "
+                    << "to be empty\n";
+                return 1;
+            }
+        }
     }
 
     {
@@ -197,6 +228,34 @@ int main() {
                 << "Test 7 failed expected item 17 at level 0\n";
             return 1;
         }
+
+        if (
+            !result.selected_level.has_value() ||
+            result.selected_level.value() != 0
+        ) {
+            std::cerr
+                << "Test 7 failed: expected selected level 0\n";
+            return 1;
+        }
+
+        if (result.recovery_diagnostics.size() != 1) {
+            std::cerr
+                << "Test 7 failed: expected one recovery diagnostic\n";
+            return 1;
+        }
+
+        const LevelRecoveryDiagnostic& diagnostic =
+            result.recovery_diagnostics.front();
+
+        if (
+            diagnostic.level != 0 ||
+            diagnostic.status != RecoveryStatus::Success ||
+            diagnostic.recovered_item_count != 1
+        ) {
+            std::cerr
+                << "Test 7 failed: incorrect fixed-level diagnostic\n";
+            return 1;
+        }
     }
 
     {
@@ -231,6 +290,53 @@ int main() {
                 << "Test 8 failed: recovered item outside support\n";
             return 1;
         }
+
+        if (!result.selected_level.has_value()) {
+            std::cerr
+                << "Test 8 failed: expected a selected level\n";
+            return 1;
+        }
+
+        if (result.recovery_diagnostics.empty()) {
+            std::cerr
+                << "Test 8 failed: expected recovery diagnostics\n";
+            return 1;
+        }
+
+        const LevelRecoveryDiagnostic& selected_diagnostic =
+            result.recovery_diagnostics.back();
+
+        if (
+            selected_diagnostic.level !=
+                result.selected_level.value() ||
+            selected_diagnostic.status !=
+                RecoveryStatus::Success ||
+            selected_diagnostic.recovered_item_count !=
+                result.candidates.size()
+        ) {
+            std::cerr
+                << "Test 8 failed: incorrect selected-level diagnostic\n";
+            return 1;
+        }
+
+        for (
+            std::size_t i = 1;
+            i < result.recovery_diagnostics.size();
+            ++i
+        ) {
+            const std::size_t previous_level =
+                result.recovery_diagnostics[i - 1].level;
+
+            const std::size_t current_level =
+                result.recovery_diagnostics[i].level;
+
+            if (previous_level != current_level + 1) {
+                std::cerr
+                    << "Test 8 failed: greedy diagnostics "
+                    << "are not ordered from high to low levels\n";
+                return 1;
+            }
+        }
     }
 
     {
@@ -249,9 +355,35 @@ int main() {
             result.item.has_value()
         ) {
             std::cerr
-                << "Test 8 failed: expected empty fixed level\n";
+                << "Test 9 failed: expected empty fixed level\n";
             return 1;
         }
+
+        if (result.selected_level.has_value()) {
+            std::cerr
+                << "Test 9 failed: empty level must not be selected\n";
+            return 1;
+        }
+
+        if (result.recovery_diagnostics.size() != 1) {
+            std::cerr
+                << "Test 9 failed: expected one recovery diagnostic\n";
+            return 1;
+        }
+
+        const LevelRecoveryDiagnostic& diagnostic =
+            result.recovery_diagnostics.front();
+
+        if (
+            diagnostic.level != 5 ||
+            diagnostic.status != RecoveryStatus::Empty ||
+            diagnostic.recovered_item_count != 0
+        ) {
+            std::cerr
+                << "Test 9 failed: incorrect empty-level diagnostic\n";
+            return 1;
+        }
+
     }
 
 
