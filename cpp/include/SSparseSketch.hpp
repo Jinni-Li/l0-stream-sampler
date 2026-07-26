@@ -25,6 +25,8 @@ class SSparseSketch
         std::size_t rows() const;
         std::size_t buckets() const;
 
+        std::uint64_t cell_fingerprint_base(std::size_t row, std::size_t bucket) const;
+
     private:
         std::size_t sparsity_;
         std::size_t rows_;
