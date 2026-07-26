@@ -10,6 +10,10 @@ namespace{
     constexpr std::uint64_t FINGERPRINT_PRIME = 4294967291ULL;
     constexpr std::uint64_t FINGERPRINT_SEED_SALT = 0xd6e8feb86659fd93ULL;
 
+    constexpr std::uint64_t CELL_SEED_SALT = 0x8cb92baa3f3d8dd7ULL;
+
+    constexpr std::uint64_t CELL_SEED_GAMMA = 0x9e3779b97f4a7c15ULL;
+
     std::uint64_t mod_from_int(std::int64_t value){
         const auto modulus = static_cast<std::int64_t>(FINGERPRINT_PRIME);
 
@@ -60,6 +64,18 @@ namespace{
 
         return (frequency_mod * item_power) % FINGERPRINT_PRIME;
     }
+
+    std::uint64_t derive_cell_seed(std::uint64_t sketch_seed, std::size_t row, 
+        std::size_t bucket, std::size_t buckets) noexcept{
+            const std::uint64_t cell_index = static_cast<std::uint64_t>(row) * 
+            static_cast<std::uint64_t>(buckets) + 
+            static_cast<std::uint64_t>(bucket);
+
+            const std::uint64_t separated_seed = sketch_seed ^ CELL_SEED_SALT ^ 
+            (CELL_SEED_GAMMA * (cell_index + 1ULL));
+
+            return hash_utils::splitmix64(separated_seed);
+        }
 }
 
 SSparseSketch::SSparseSketch(
@@ -74,7 +90,7 @@ buckets_(buckets),
 seed_(seed),
 fingerprint_base_(derive_fingerprint_base(seed)),
 level_fingerprint_(0),
-table_(rows,std::vector<OneSparseSketch>(buckets)){
+table_(){
 
     if(sparsity_ == 0){
         throw std::invalid_argument("sparsity must be greater than zero");
@@ -87,6 +103,26 @@ table_(rows,std::vector<OneSparseSketch>(buckets)){
     if(buckets_ == 0){
         throw std::invalid_argument("buckets must be greater than zero");
     }
+
+    table_.reserve(rows_);
+
+    for (std::size_t row = 0; row < rows_; ++row)
+    {
+        table_.emplace_back();
+
+        std::vector<OneSparseSketch>& row_cells = table_.back();
+
+        row_cells.reserve(buckets_);
+
+        for (std::size_t bucket = 0; bucket < buckets_; ++bucket)
+        {
+            const std::uint64_t cell_seed = derive_cell_seed(seed_,row, bucket, buckets_);
+
+            row_cells.emplace_back(cell_seed);
+        }
+        
+    }
+    
 
     bucket_hashes_.reserve(rows_);
 
@@ -240,6 +276,9 @@ std::size_t SSparseSketch::bucket_for(std::size_t row, std::int64_t item_id) con
     return static_cast<std::size_t>(bucket_hashes_[row](item_id));
 }
 
+std::uint64_t SSparseSketch::cell_fingerprint_base(std::size_t row, std::size_t bucket) const{
+    return table_.at(row).at(bucket).fingerprint_base();
+}
 
 
 

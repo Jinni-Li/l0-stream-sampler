@@ -135,6 +135,57 @@ int main() {
             return 1;
         }
     }
+
+    // The same seed must derive the same fingerprint base.
+    {
+        OneSparseSketch first(123);
+        OneSparseSketch second(123);
+
+        if (
+            first.fingerprint_base() !=
+            second.fingerprint_base()
+        ) {
+            std::cerr
+                << "Test 8 failed: the same seed produced "
+                << "different fingerprint bases\n";
+            return 1;
+        }
+    }
+
+    // Different seeds should derive different bases.
+    {
+        OneSparseSketch first(123);
+        OneSparseSketch second(124);
+
+        if (
+            first.fingerprint_base() ==
+            second.fingerprint_base()
+        ) {
+            std::cerr
+                << "Test 9 failed: different seeds produced "
+                << "the same fingerprint base\n";
+            return 1;
+        }
+    }
+
+
+    // Derived fingerprint bases must exclude zero and one.
+    {
+        for (std::uint64_t seed = 0; seed < 1000; ++seed)
+        {
+            OneSparseSketch sketch(seed);
+
+            if (sketch.fingerprint_base() < 2)
+            {
+                std::cerr
+                    << "Test 10 failed: invalid fingerprint "
+                    << "base for seed "
+                    << seed
+                    << '\n';
+                return 1;
+            }
+        }
+    }
     std::cout << "All OneSparseSketch tests passed.\n";
     return 0;
 }

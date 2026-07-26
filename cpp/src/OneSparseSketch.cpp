@@ -1,8 +1,19 @@
 #include "OneSparseSketch.hpp"
+#include "HashUtils.hpp"
 
 #include<limits>
 
-OneSparseSketch::OneSparseSketch(): phi_(0), iota_(0), fingerprint_(0), overflowed_(false) {}
+OneSparseSketch::OneSparseSketch(std::uint64_t seed): phi_(0), iota_(0), fingerprint_(0), overflowed_(false),
+fingerprint_base_(derive_fingerprint_base(seed)) {}
+
+std::uint64_t OneSparseSketch::derive_fingerprint_base(std::uint64_t seed) noexcept{
+    const std::uint64_t mixed = hash_utils::splitmix64(seed^FINGERPRINT_SEED_SALT);
+    return 2ULL + mixed % (PRIME - 2ULL);
+}
+
+std::uint64_t OneSparseSketch::fingerprint_base()const noexcept{
+    return fingerprint_base_;
+}
 
 void OneSparseSketch::update(std::int64_t item_id, std::int64_t delta){
 
@@ -29,7 +40,7 @@ void OneSparseSketch::update(std::int64_t item_id, std::int64_t delta){
     phi_ = updated_phi;
     iota_ = updated_iota;
 
-    std::uint64_t item_power = mod_pow(Z, static_cast<std::uint64_t>(item_id));
+    std::uint64_t item_power = mod_pow(fingerprint_base_, static_cast<std::uint64_t>(item_id));
     std::uint64_t delta_mod = mod_from_int(delta);
 
     fingerprint_ = (fingerprint_ + (delta_mod * item_power) %PRIME) %PRIME;
@@ -96,7 +107,7 @@ OneSparseRecoveryResult OneSparseSketch::recover() const{
     }
 
 
-    std::uint64_t candidate_power = mod_pow(Z, static_cast<std::uint64_t>(candidate));
+    std::uint64_t candidate_power = mod_pow(fingerprint_base_, static_cast<std::uint64_t>(candidate));
 
     const std::uint64_t phi_mod = mod_from_int(frequency);
 
