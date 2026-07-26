@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <iostream>
 #include <vector>
+#include <limits>
 
 namespace {
 
@@ -538,6 +539,39 @@ int main() {
         }
     }
     
+
+// A cell-level moment overflow must be surfaced by the sparse-recovery result when complete recovery is no longer possible.
+    {
+        SSparseSketch sketch(
+            1,
+            1,
+            1,
+            123
+        );
+
+        const std::int64_t maximum =
+            std::numeric_limits<std::int64_t>::max();
+
+        sketch.update(maximum, maximum);
+        sketch.update(maximum, maximum);
+        sketch.update(maximum, maximum);
+
+        const SSparseRecoveryResult result =
+            sketch.recover();
+
+        if (
+            result.status != RecoveryStatus::MomentOverflow ||
+            !result.items.empty()
+        ) {
+            std::cerr
+                << "SSparseSketch moment overflow test failed: "
+                << "expected moment_overflow, got "
+                << to_string(result.status)
+                << '\n';
+            return 1;
+        }
+    }
+
     std::cout
         << "All SSparseSketch tests passed.\n";
 
