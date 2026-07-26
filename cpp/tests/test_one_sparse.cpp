@@ -1,6 +1,7 @@
 #include "OneSparseSketch.hpp"
 
 #include <iostream>
+#include <limits>
 
 int main() {
     {
@@ -61,6 +62,79 @@ int main() {
         }
     }
 
+    // Large item-frequency product must be computed without overflowing int64_t.
+    {
+        OneSparseSketch sketch;
+
+        const std::int64_t large_item =
+            std::numeric_limits<std::int64_t>::max();
+
+        sketch.update(large_item, 2);
+
+        const OneSparseRecoveryResult result =
+            sketch.recover();
+
+        if (
+            result.status != RecoveryStatus::Success ||
+            !result.item.has_value() ||
+            result.item->item_id != large_item ||
+            result.item->frequency != 2
+        )
+        {
+            std::cerr
+                << "Test 5 failed: Large product recovery test failed\n";
+            return 1;
+        }
+    }
+
+    // A recovered frequency outside int64_t must be rejected instead of being narrowed.
+    {
+        OneSparseSketch sketch;
+
+        sketch.update(
+            1,
+            std::numeric_limits<std::int64_t>::max()
+        );
+
+        sketch.update(1, 1);
+
+        const OneSparseRecoveryResult result =
+            sketch.recover();
+
+        if (
+            result.status !=
+            RecoveryStatus::InvalidCandidate ||
+            result.item.has_value()
+        )
+        {
+            std::cerr
+                << "Test 6 failed: Out-of-range frequency test failed\n";
+            return 1;
+        }
+    }
+
+    {
+        OneSparseSketch sketch;
+
+        const std::int64_t maximum =
+            std::numeric_limits<std::int64_t>::max();
+
+        sketch.update(maximum, maximum);
+        sketch.update(maximum, maximum);
+        sketch.update(maximum, maximum);
+
+        const OneSparseRecoveryResult result =
+            sketch.recover();
+
+        if (
+            result.status != RecoveryStatus::MomentOverflow ||
+            result.item.has_value()
+        ) {
+            std::cerr
+                << "Test 7 failed: 128-bit moment overflow test failed\n";
+            return 1;
+        }
+    }
     std::cout << "All OneSparseSketch tests passed.\n";
     return 0;
 }

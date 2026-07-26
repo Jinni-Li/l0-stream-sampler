@@ -1,10 +1,33 @@
 #include "OneSparseSketch.hpp"
 
-OneSparseSketch::OneSparseSketch(): phi_(0), iota_(0), fingerprint_(0) {}
+#include<limits>
+
+OneSparseSketch::OneSparseSketch(): phi_(0), iota_(0), fingerprint_(0), overflowed_(false) {}
 
 void OneSparseSketch::update(std::int64_t item_id, std::int64_t delta){
-    phi_ += delta;
-    iota_ += item_id * delta;
+
+    if(overflowed_ || delta == 0)
+    {
+        return;
+    }
+
+    const __int128_t delta_128 = static_cast<__int128_t>(delta);
+    const __int128_t weighted_update = static_cast<__int128_t>(item_id) * delta_128;
+
+    __int128_t updated_phi = 0;
+    __int128_t updated_iota = 0;
+
+    const bool phi_overflow = __builtin_add_overflow(phi_, delta_128, &updated_phi);
+
+    const bool iota_overflow =__builtin_add_overflow(iota_,weighted_update,&updated_iota);
+
+    if (phi_overflow || iota_overflow) {
+        overflowed_ = true;
+        return;
+    }
+
+    phi_ = updated_phi;
+    iota_ = updated_iota;
 
     std::uint64_t item_power = mod_pow(Z, static_cast<std::uint64_t>(item_id));
     std::uint64_t delta_mod = mod_from_int(delta);
@@ -12,7 +35,21 @@ void OneSparseSketch::update(std::int64_t item_id, std::int64_t delta){
     fingerprint_ = (fingerprint_ + (delta_mod * item_power) %PRIME) %PRIME;
 }
 
+bool OneSparseSketch::fits_in_int64(__int128_t value) noexcept {
+    return
+        value >= static_cast<__int128_t>(std::numeric_limits<std::int64_t>::min()) &&
+        value <= static_cast<__int128_t>(std::numeric_limits<std::int64_t>::max());
+}
+
 OneSparseRecoveryResult OneSparseSketch::recover() const{
+
+    if (overflowed_) {
+        return OneSparseRecoveryResult{
+            RecoveryStatus::MomentOverflow,
+            std::nullopt
+        };
+    }
+
     if (empty())
     {
         return OneSparseRecoveryResult{
@@ -37,7 +74,18 @@ OneSparseRecoveryResult OneSparseSketch::recover() const{
         };
     }
 
-    const std::int64_t candidate = iota_/phi_;
+    const __int128_t candidate_value = iota_/phi_;
+
+    if (!fits_in_int64(candidate_value) ||!fits_in_int64(phi_))
+    {
+        return OneSparseRecoveryResult{
+            RecoveryStatus::InvalidCandidate,
+            std::nullopt
+        };
+    }
+
+    const std::int64_t candidate = static_cast<std::int64_t>(candidate_value);
+    const std::int64_t frequency = static_cast<std::int64_t>(phi_);
 
     if (candidate < 0)
     {
@@ -50,7 +98,7 @@ OneSparseRecoveryResult OneSparseSketch::recover() const{
 
     std::uint64_t candidate_power = mod_pow(Z, static_cast<std::uint64_t>(candidate));
 
-    const std::uint64_t phi_mod = mod_from_int(phi_);
+    const std::uint64_t phi_mod = mod_from_int(frequency);
 
     std::uint64_t expected_fingerprint = (phi_mod * candidate_power) % PRIME;
 
@@ -58,7 +106,7 @@ OneSparseRecoveryResult OneSparseSketch::recover() const{
     {
         return OneSparseRecoveryResult{
             RecoveryStatus::Success,
-            RecoveredItem{candidate, phi_}
+            RecoveredItem{candidate, frequency}
         };
     }
 
@@ -70,7 +118,7 @@ OneSparseRecoveryResult OneSparseSketch::recover() const{
 
 
 bool OneSparseSketch::empty()const{
-    return phi_ == 0 && iota_ == 0 && fingerprint_ == 0;
+    return !overflowed_ && phi_ == 0 && iota_ == 0 && fingerprint_ == 0;
 }
 
 std::uint64_t OneSparseSketch::mod_pow(std::uint64_t base, std::uint64_t exponent){

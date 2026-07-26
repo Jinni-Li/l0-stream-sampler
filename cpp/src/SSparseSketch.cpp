@@ -119,6 +119,7 @@ void SSparseSketch::update(std::int64_t item_id, std::int64_t delta){
 SSparseRecoveryResult SSparseSketch::recover() const{
     std::unordered_map<std::int64_t, std::int64_t> unique_items;
     bool saw_non_empty_cell = false;
+    bool saw_moment_overflow = false;
 
     for (std::size_t row = 0; row < rows_; ++row)
     {
@@ -126,15 +127,16 @@ SSparseRecoveryResult SSparseSketch::recover() const{
         {
             const OneSparseSketch& cell = table_[row][bucket];
 
-            if (!cell.empty())
-            {
-                saw_non_empty_cell = true;
-            }
-
             auto recovered = cell.recover();
             
             if(recovered.status != RecoveryStatus::Empty){
                 saw_non_empty_cell = true;
+            }
+
+            if (recovered.status == RecoveryStatus::MomentOverflow)
+            {
+                saw_moment_overflow = true;
+                continue;
             }
 
             if (recovered.status != RecoveryStatus::Success || !recovered.item.has_value())
@@ -181,7 +183,9 @@ SSparseRecoveryResult SSparseSketch::recover() const{
     if (recovered_items.empty())
     {
         return SSparseRecoveryResult{
-            RecoveryStatus::RecoveryFailure,
+            saw_moment_overflow
+                ? RecoveryStatus::MomentOverflow
+                : RecoveryStatus::RecoveryFailure,
             {}
         };
     }
@@ -198,7 +202,9 @@ SSparseRecoveryResult SSparseSketch::recover() const{
     if (recovered_fingerprint != level_fingerprint_)
     {
         return SSparseRecoveryResult{
-            RecoveryStatus::IncompleteRecovery,
+            saw_moment_overflow
+                ? RecoveryStatus::MomentOverflow
+                : RecoveryStatus::IncompleteRecovery,
             recovered_items
         };
     }

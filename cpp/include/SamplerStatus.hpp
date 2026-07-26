@@ -12,6 +12,7 @@ enum class RecoveryStatus{
     FingerprintMismatch,
     InvalidCandidate,
     IncompleteRecovery,
+    MomentOverflow,
     RecoveryFailure
 };
 
@@ -38,6 +39,8 @@ inline const char* to_string(RecoveryStatus status){
         return "invalid_candidate";
     case RecoveryStatus::IncompleteRecovery:
         return "incomplete_recovery";
+    case RecoveryStatus::MomentOverflow:
+        return "moment_overflow";
     case RecoveryStatus::RecoveryFailure:
         return "recovery_failure";
     
