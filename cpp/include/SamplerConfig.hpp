@@ -11,6 +11,9 @@ enum class RecoveryMode {
 
 struct SamplerConfig
 {
+    // The 61-bit polynomial hash supports distinct geometric levels indexed from 0 to 60.
+    static constexpr std::size_t MAX_NUM_LEVELS = 61;
+
     // Number of geometric sampling levels
     std::size_t num_levels = 32;
 
@@ -37,6 +40,13 @@ struct SamplerConfig
         if (num_levels == 0) {
             throw std::invalid_argument(
                 "SamplerConfig: num_levels must be greater than 0."
+            );
+        }
+
+        if (num_levels > MAX_NUM_LEVELS)
+        {
+            throw std::invalid_argument(
+                "SamplerConfig: num_levels must not exceed 61."
             );
         }
 

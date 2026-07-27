@@ -138,6 +138,55 @@ int main() {
         }
     }
 
+    // The maximum supported number of levels is valid.
+    {
+        SamplerConfig config;
+        config.num_levels =
+            SamplerConfig::MAX_NUM_LEVELS;
+
+        if (throws_invalid_argument(config))
+        {
+            std::cerr
+                << "Test 11 failed: maximum number "
+                << "of levels should be valid\n";
+            return 1;
+        }
+    }
+
+    // One level above the supported maximum is invalid.
+    {
+        SamplerConfig config;
+        config.num_levels =
+            SamplerConfig::MAX_NUM_LEVELS + 1;
+
+        if (!throws_invalid_argument(config))
+        {
+            std::cerr
+                << "Test 12 failed: levels above "
+                << "the supported maximum should be rejected\n";
+            return 1;
+        }
+    }
+
+    // The highest valid fixed level is index 60.
+    {
+        SamplerConfig config;
+
+        config.num_levels = SamplerConfig::MAX_NUM_LEVELS;
+
+        config.recovery_mode = RecoveryMode::FixedLevel;
+
+        config.fixed_level = SamplerConfig::MAX_NUM_LEVELS - 1;
+
+        if (throws_invalid_argument(config))
+        {
+            std::cerr
+                << "Test 13 failed: highest supported "
+                << "fixed level should be valid\n";
+            return 1;
+        }
+    }
+
     std::cout << "All SamplerConfig tests passed.\n";
     return 0;
 }

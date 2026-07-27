@@ -72,9 +72,11 @@ void HashBasedL0Sampler::update(std::int64_t item_id, std::int64_t delta) {
 }
 
 bool HashBasedL0Sampler::included_in_level(std::uint64_t hash_value, std::size_t level){
-    if (level >= 61)
+    if (level >= SamplerConfig::MAX_NUM_LEVELS)
     {
-        return hash_value == 0;
+        throw std::out_of_range(
+            "Sampling level exceeds the supported hash range."
+        );
     }
 
     std::uint64_t threshold = KWisePolynomialHash::prime() >> level;
