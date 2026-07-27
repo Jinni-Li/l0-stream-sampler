@@ -11,6 +11,8 @@ import json
 import sys
 from datetime import datetime, timezone
 import os
+import math
+from scipy.stats import chisquare
 
 import matplotlib.pyplot as plt
 
@@ -31,12 +33,32 @@ class UniformityRow:
     observed_probability: float
     expected_probability: float
     deviation_from_expected: float
+    normalized_deviation: float
+    absolute_normalized_deviation: float
     successful_trials: int
     failures: int
     invalid_samples: int
     success_rate: float
     source_csv: str
 
+@dataclass
+class UniformityMetrics:
+    sampler: str
+    trials: int
+    seed: int
+    support_size: int
+    successful_trials: int
+    failures: int
+    invalid_samples: int
+    success_rate: float
+    expected_count_per_item: float
+    mean_absolute_normalized_deviation: float
+    maximum_absolute_normalized_deviation: float
+    total_variation_distance: float
+    chi_square_statistic: float
+    chi_square_degrees_of_freedom: int
+    chi_square_p_value: float
+    source_csv: str
 
 def parse_int_list(value: str) -> list[int]:
     values = [part.strip() for part in value.split(",") if part.strip()]
@@ -567,7 +589,17 @@ def build_summary(
                         else 0.0
                     )
 
+                    deviation = (
+                        observed_probability
+                        - expected_probability
+                    )
+
+                    normalized_deviation = (
+                        deviation / expected_probability
+                    )
+                    
                     rows.append(
+
                         UniformityRow(
                             sampler=sampler,
                             trials=trials,
@@ -576,9 +608,10 @@ def build_summary(
                             count=count,
                             observed_probability=observed_probability,
                             expected_probability=expected_probability,
-                            deviation_from_expected=(
-                                observed_probability
-                                - expected_probability
+                            deviation_from_expected=deviation,
+                            normalized_deviation=normalized_deviation,
+                            absolute_normalized_deviation=abs(
+                                normalized_deviation
                             ),
                             successful_trials=successful_trials,
                             failures=failures,
@@ -590,8 +623,149 @@ def build_summary(
                         )
                     )
 
+
+
     return rows
 
+
+
+def build_uniformity_metrics(
+    rows: list[UniformityRow],
+) -> list[UniformityMetrics]:
+    grouped: dict[
+        tuple[str, int, int],
+        list[UniformityRow],
+    ] = {}
+
+    for row in rows:
+        key = (
+            row.sampler,
+            row.trials,
+            row.seed,
+        )
+        grouped.setdefault(key, []).append(row)
+
+    metrics: list[UniformityMetrics] = []
+
+    for (
+        sampler,
+        trials,
+        seed,
+    ), selected_rows in sorted(grouped.items()):
+        selected_rows = sorted(
+            selected_rows,
+            key=lambda row: row.item,
+        )
+
+        support_size = len(selected_rows)
+        successful_trials = (
+            selected_rows[0].successful_trials
+        )
+        failures = selected_rows[0].failures
+        invalid_samples = (
+            selected_rows[0].invalid_samples
+        )
+
+        observed_probabilities = [
+            row.observed_probability
+            for row in selected_rows
+        ]
+
+        expected_probability = (
+            selected_rows[0].expected_probability
+        )
+
+        normalized_deviations = [
+            row.absolute_normalized_deviation
+            for row in selected_rows
+        ]
+
+        total_variation_distance = (
+            0.5
+            * sum(
+                abs(
+                    probability
+                    - expected_probability
+                )
+                for probability
+                in observed_probabilities
+            )
+        )
+
+        expected_count = (
+            successful_trials / support_size
+            if support_size > 0
+            else 0.0
+        )
+
+        if successful_trials > 0 and support_size > 1:
+            observed_counts = [
+                row.count
+                for row in selected_rows
+            ]
+
+            expected_counts = [
+                expected_count
+            ] * support_size
+
+            chi_result = chisquare(
+                f_obs=observed_counts,
+                f_exp=expected_counts,
+            )
+
+            chi_square_statistic = float(
+                chi_result.statistic
+            )
+            chi_square_p_value = float(
+                chi_result.pvalue
+            )
+        elif successful_trials > 0:
+            # A one-item support is trivially uniform.
+            chi_square_statistic = 0.0
+            chi_square_p_value = 1.0
+        else:
+            chi_square_statistic = math.nan
+            chi_square_p_value = math.nan
+
+        metrics.append(
+            UniformityMetrics(
+                sampler=sampler,
+                trials=trials,
+                seed=seed,
+                support_size=support_size,
+                successful_trials=successful_trials,
+                failures=failures,
+                invalid_samples=invalid_samples,
+                success_rate=(
+                    successful_trials / trials
+                ),
+                expected_count_per_item=expected_count,
+                mean_absolute_normalized_deviation=(
+                    sum(normalized_deviations)
+                    / support_size
+                ),
+                maximum_absolute_normalized_deviation=max(
+                    normalized_deviations
+                ),
+                total_variation_distance=(
+                    total_variation_distance
+                ),
+                chi_square_statistic=(
+                    chi_square_statistic
+                ),
+                chi_square_degrees_of_freedom=(
+                    support_size - 1
+                ),
+                chi_square_p_value=(
+                    chi_square_p_value
+                ),
+                source_csv=(
+                    selected_rows[0].source_csv
+                ),
+            )
+        )
+
+    return metrics
 
 def save_summary(
     rows: list[UniformityRow],
@@ -611,6 +785,31 @@ def save_summary(
         writer.writeheader()
         writer.writerows(dictionaries)
 
+def save_metrics(
+    metrics: list[UniformityMetrics],
+    output_path: Path,
+) -> None:
+    if not metrics:
+        raise ValueError(
+            "No uniformity metrics to save."
+        )
+
+    rows = [
+        asdict(metric)
+        for metric in metrics
+    ]
+
+    with output_path.open(
+        "w",
+        newline="",
+        encoding="utf-8",
+    ) as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=list(rows[0].keys()),
+        )
+        writer.writeheader()
+        writer.writerows(rows)
 
 def select_rows(
     rows: list[UniformityRow],
@@ -1082,22 +1281,6 @@ def main() -> None:
             f"results/experiments/uniformity_{dataset_stem}"
         )
     )
-    output_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    samplers = sampler_names(
-        args.samplers,
-        args.recovery,
-        args.fixed_level,
-    )
-
-    validate_or_create_manifest(
-        args,
-        output_dir,
-        samplers,
-    )
 
     support = compute_exact_support(
         args.dataset,
@@ -1109,7 +1292,24 @@ def main() -> None:
             "The dataset has empty final support."
         )
 
-    samplers = sampler_names(args.samplers,args.recovery,args.fixed_level)
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    samplers = sampler_names(
+        args.samplers,
+        args.recovery,
+        args.fixed_level,
+    )
+    
+    validate_or_create_manifest(
+        args,
+        output_dir,
+        samplers,
+    )
+
+
 
     print(f"Dataset: {args.dataset}")
     print(f"Final support size: {len(support)}")
@@ -1167,6 +1367,18 @@ def main() -> None:
     )
     save_summary(rows, summary_path)
 
+    metrics = build_uniformity_metrics(rows)
+
+    metrics_path = (
+        output_dir
+        / f"{dataset_stem}_uniformity_metrics.csv"
+    )
+
+    save_metrics(
+        metrics,
+        metrics_path,
+    )
+
     for trials in args.trials:
         for seed in args.seeds:
             for sampler in samplers:
@@ -1217,7 +1429,7 @@ def main() -> None:
     print("Uniformity experiment and visualization completed.")
     print(f"Summary CSV: {summary_path}")
     print(f"Plots directory: {output_dir}")
-
+    print(f"Metrics CSV: {metrics_path}")
 
 if __name__ == "__main__":
     main()

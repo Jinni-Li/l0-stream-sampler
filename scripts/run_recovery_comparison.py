@@ -698,9 +698,9 @@ def main() -> None:
             f"Executable not found: {EXE}. Build the C++ project first."
         )
     
-    if not os.access(args.exe, os.X_OK):
+    if not os.access(EXE, os.X_OK):
         raise PermissionError(
-            f"Executable is not marked as executable: {args.exe}"
+            f"Executable is not marked as executable: {EXE}"
         )
 
     if not DATASET.exists():
