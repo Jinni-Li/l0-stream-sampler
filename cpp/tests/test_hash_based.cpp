@@ -1,5 +1,6 @@
 #include "HashBasedL0Sampler.hpp"
 #include "SamplerConfig.hpp"
+#include "SelectionKey.hpp"
 
 #include <cstdint>
 #include <iostream>
@@ -600,6 +601,73 @@ int main() {
             std::cerr
                 << "Test 14 failed: Hash-independence k below 2 "
                 << "should be rejected\n";
+            return 1;
+        }
+    }
+
+    {
+        const SelectionKey lower_hash{
+            100,
+            99
+        };
+
+        const SelectionKey higher_hash{
+            200,
+            1
+        };
+
+        if (!(lower_hash < higher_hash)) {
+            std::cerr
+                << "Test 15 failed: failed: "
+                << "lower hash should win\n";
+            return 1;
+        }
+    }
+
+    {
+        const SelectionKey smaller_item{
+            500,
+            17
+        };
+
+        const SelectionKey larger_item{
+            500,
+            44
+        };
+
+        if (!(smaller_item < larger_item)) {
+            std::cerr
+                << "Test 16 failed: "
+                << "smaller item_id should break a hash tie\n";
+            return 1;
+        }
+
+        if (larger_item < smaller_item) {
+            std::cerr
+                << "Test 16 failed:"
+                << "larger item_id won a hash tie\n";
+            return 1;
+        }
+    }
+
+    {
+        const SelectionKey same_key_a{
+            500,
+            17
+        };
+
+        const SelectionKey same_key_b{
+            500,
+            17
+        };
+
+        if (
+            same_key_a < same_key_b ||
+            same_key_b < same_key_a
+        ) {
+            std::cerr
+                << "Test 17 failed: "
+                << "identical keys must compare as equal\n";
             return 1;
         }
     }

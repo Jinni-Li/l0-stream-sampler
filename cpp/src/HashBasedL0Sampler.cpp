@@ -2,6 +2,7 @@
 #include "KWisePolynomialHash.hpp"
 #include "HashUtils.hpp"
 #include "ItemDomain.hpp"
+#include "SelectionKey.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -125,16 +126,22 @@ SampleResult HashBasedL0Sampler::select_candidate(
     }
 
     std::int64_t best_candidate = candidates.front();
-    std::uint64_t best_hash =
-        selection_hash(best_candidate);
+    SelectionKey best_key{
+        selection_hash(best_candidate),
+        best_candidate
+    };
 
-    for (const std::int64_t candidate : candidates) {
-        const std::uint64_t candidate_hash =
-            selection_hash(candidate);
+    for (std::size_t index = 1; index < candidates.size(); ++index) {
+        const std::int64_t candidate = candidates[index];
 
-        if (candidate_hash < best_hash) {
+        const SelectionKey candidate_key{
+            selection_hash(candidate),
+            candidate
+        };
+
+        if (candidate_key < best_key) {
             best_candidate = candidate;
-            best_hash = candidate_hash;
+            best_key = candidate_key;
         }
     }
 
