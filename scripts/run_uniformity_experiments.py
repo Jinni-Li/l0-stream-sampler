@@ -6,9 +6,20 @@ import subprocess
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
+import hashlib
+import json
+import sys
+from datetime import datetime, timezone
+import os
 
 import matplotlib.pyplot as plt
 
+NUM_LEVELS = 32
+SPARSITY = 4
+RECOVERY_ROWS = 4
+RECOVERY_BUCKETS = 8
+HASH_INDEPENDENCE_K = 4
+MANIFEST_SCHEMA_VERSION = 1
 
 @dataclass
 class UniformityRow:
@@ -49,6 +60,24 @@ def parse_int_list(value: str) -> list[int]:
 
     return parsed
 
+def default_executable_path() -> Path:
+    executable_name = (
+        "l0_sampler.exe"
+        if os.name == "nt"
+        else "l0_sampler"
+    )
+
+    candidates = [
+        Path("cpp/build") / executable_name,
+        Path("cpp/build/Release") / executable_name,
+        Path("cpp/build/Debug") / executable_name,
+    ]
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+
+    return candidates[0]
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -66,8 +95,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--exe",
         type=Path,
-        default=Path("cpp/build/l0_sampler.exe"),
-        help="Path to the compiled sampler executable.",
+        default=default_executable_path(),
+        help="Path to the compiled sampler executable. "
+        "Automatically detects Windows, Linux, and macOS "
+        "build paths by default."
     )
     parser.add_argument(
         "--trials",
@@ -124,6 +155,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
         help="Reuse existing trial CSVs and logs.",
     )
+    parser.add_argument(
+        "--overwrite",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Allow existing trial CSVs and logs to be "
+            "explicitly replaced."
+        ),
+    )
 
     return parser
 
@@ -174,12 +214,19 @@ def compute_exact_support(
     )
 
 
-def sampler_names(selection: str) -> list[str]:
+def sampler_names(selection: str,recovery: str,fixed_level: int) -> list[str]:
+    if recovery == "greedy":
+        hash_name = "hash_greedy"
+    else:
+        hash_name = f"hash_fixed_{fixed_level}"
+
     if selection == "both":
-        return ["baseline", "hash_greedy"]
+        return ["baseline", hash_name]
+
     if selection == "baseline":
         return ["baseline"]
-    return ["hash_greedy"]
+
+    return [hash_name]
 
 
 def experiment_stem(
@@ -223,6 +270,16 @@ def build_command(
     if sampler_type == "hash":
         command.extend(
             [
+                "--levels",
+                str(NUM_LEVELS),
+                "--sparsity",
+                str(SPARSITY),
+                "--rows",
+                str(RECOVERY_ROWS),
+                "--buckets",
+                str(RECOVERY_BUCKETS),
+                "--hash-k",
+                str(HASH_INDEPENDENCE_K),
                 "--recovery",
                 recovery,
             ]
@@ -239,16 +296,153 @@ def build_command(
     return command
 
 
+def validate_existing_trial_csv(
+    csv_path: Path,
+    trials: int,
+    seed: int,
+    sampler: str,
+    recovery: str,
+    fixed_level: int,
+) -> None:
+    required_columns = {
+        "trial",
+        "sample",
+        "status",
+        "base_seed",
+    }
+
+    if sampler != "baseline":
+        required_columns.update(
+            {
+                "num_levels",
+                "sparsity",
+                "recovery_rows",
+                "recovery_buckets",
+                "hash_independence_k",
+                "polynomial_degree",
+                "recovery_mode",
+                "fixed_level",
+            }
+        )
+
+    with csv_path.open(
+        "r",
+        newline="",
+        encoding="utf-8-sig",
+    ) as file:
+        reader = csv.DictReader(file)
+
+        if reader.fieldnames is None:
+            raise RuntimeError(
+                f"Trial CSV has no header: {csv_path}"
+            )
+
+        missing_columns = required_columns.difference(
+            reader.fieldnames
+        )
+
+        if missing_columns:
+            raise RuntimeError(
+                f"CSV '{csv_path}' is incompatible. "
+                f"Missing columns: "
+                f"{sorted(missing_columns)}."
+            )
+
+        rows = list(reader)
+
+    if len(rows) != trials:
+        raise RuntimeError(
+            f"CSV '{csv_path}' contains {len(rows)} trials, "
+            f"but {trials} are required."
+        )
+
+    if not rows:
+        raise RuntimeError(
+            f"CSV '{csv_path}' contains no rows."
+        )
+
+    expected_values = {
+        "base_seed": str(seed),
+    }
+
+    if sampler != "baseline":
+        expected_values.update(
+            {
+                "num_levels": str(NUM_LEVELS),
+                "sparsity": str(SPARSITY),
+                "recovery_rows": str(RECOVERY_ROWS),
+                "recovery_buckets": str(
+                    RECOVERY_BUCKETS
+                ),
+                "hash_independence_k": str(
+                    HASH_INDEPENDENCE_K
+                ),
+                "polynomial_degree": str(
+                    HASH_INDEPENDENCE_K - 1
+                ),
+                "recovery_mode": recovery,
+            }
+        )
+
+        if recovery == "fixed":
+            expected_values["fixed_level"] = str(
+                fixed_level
+            )
+
+    for row_number, row in enumerate(rows, start=2):
+        for column, expected_value in expected_values.items():
+            actual_value = row[column].strip()
+
+            if actual_value != expected_value:
+                raise RuntimeError(
+                    f"CSV '{csv_path}' is incompatible "
+                    f"at row {row_number}: "
+                    f"column '{column}' contains "
+                    f"'{actual_value}', expected "
+                    f"'{expected_value}'."
+                )
+            
 def run_experiment(
     command: list[str],
     output_csv: Path,
     log_path: Path,
     experiment_name: str,
     reuse: bool,
+    overwrite: bool,
+    trials: int,
+    seed: int,
+    sampler: str,
+    recovery: str,
+    fixed_level: int,
 ) -> None:
-    if reuse and output_csv.exists() and log_path.exists():
-        print(f"Reusing existing result: {experiment_name}")
-        return
+    csv_exists = output_csv.exists()
+    log_exists = log_path.exists()
+
+    if reuse:
+        if csv_exists and log_exists:
+            validate_existing_trial_csv(
+                output_csv,
+                trials,
+                seed,
+                sampler,
+                recovery,
+                fixed_level,
+            )
+            print(f"Reusing validated result: {experiment_name}")
+            return
+
+        if csv_exists or log_exists:
+            raise RuntimeError(
+                f"Incomplete existing result for '{experiment_name}'. "
+                "Both CSV and log are required for reuse."
+            )
+
+    if (csv_exists or log_exists) and not overwrite:
+        raise FileExistsError(
+            f"Output already exists for '{experiment_name}'. "
+            "Use --reuse for compatible results or "
+            "--overwrite to replace them explicitly."
+        )
 
     print()
     print(f"Running {experiment_name}")
@@ -589,6 +783,7 @@ def create_sampler_comparison(
     dataset_stem: str,
     trials: int,
     seed: int,
+    hash_sampler: str,
 ) -> None:
     baseline = select_rows(
         rows,
@@ -598,7 +793,7 @@ def create_sampler_comparison(
     )
     hash_rows = select_rows(
         rows,
-        "hash_greedy",
+        hash_sampler,
         trials,
         seed,
     )
@@ -639,9 +834,9 @@ def create_sampler_comparison(
         linestyle="--",
     )
     plt.xlabel("Baseline observed probability")
-    plt.ylabel("Hash greedy observed probability")
+    plt.ylabel(f"{hash_sampler} observed probability")
     plt.title(
-        f"{dataset_stem}: baseline vs hash greedy\n"
+        f"{dataset_stem}: baseline vs {hash_sampler}\n"
         f"{trials:,} trials, seed {seed}"
     )
     plt.tight_layout()
@@ -695,13 +890,178 @@ def print_run_summary(
             f"{row.success_rate:<14.6f}"
         )
 
+def sha256_file(path: Path) -> str:
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Cannot calculate SHA-256. File not found: {path}"
+        )
+
+    digest = hashlib.sha256()
+
+    with path.open("rb") as file:
+        for chunk in iter(
+            lambda: file.read(1024 * 1024),
+            b"",
+        ):
+            digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def run_git_command(arguments: list[str]) -> str:
+    completed = subprocess.run(
+        ["git", *arguments],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "Git provenance command failed: "
+            f"git {' '.join(arguments)}. "
+            f"{completed.stderr.strip()}"
+        )
+
+    return completed.stdout.strip()
+
+def build_manifest_identity(
+    args: argparse.Namespace,
+    output_dir: Path,
+    samplers: list[str],
+) -> dict[str, object]:
+    git_commit = run_git_command(
+        ["rev-parse", "HEAD"]
+    )
+
+    git_status = run_git_command(
+        ["status", "--porcelain"]
+    )
+
+    return {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "experiment": "uniformity",
+        "run_label": output_dir.name,
+        "git": {
+            "commit": git_commit,
+            "dirty": bool(git_status),
+        },
+        "dataset": {
+            "path": args.dataset.as_posix(),
+            "sha256": sha256_file(args.dataset),
+            "item_column": args.item_column,
+            "delta_column": args.delta_column,
+        },
+        "executable": {
+            "path": args.exe.as_posix(),
+            "sha256": sha256_file(args.exe),
+        },
+        "environment": {
+            "python_version": sys.version,
+            "platform": sys.platform,
+        },
+        "configuration": {
+            "trials": args.trials,
+            "seeds": args.seeds,
+            "samplers": samplers,
+            "recovery_mode": args.recovery,
+            "fixed_level": (
+                args.fixed_level
+                if args.recovery == "fixed"
+                else None
+            ),
+            "num_levels": NUM_LEVELS,
+            "sparsity": SPARSITY,
+            "recovery_rows": RECOVERY_ROWS,
+            "recovery_buckets": RECOVERY_BUCKETS,
+            "hash_independence_k": HASH_INDEPENDENCE_K,
+            "polynomial_degree": (
+                HASH_INDEPENDENCE_K - 1
+            ),
+        },
+    }
+
+def validate_or_create_manifest(
+    args: argparse.Namespace,
+    output_dir: Path,
+    samplers: list[str],
+) -> None:
+    manifest_path = output_dir / "run_manifest.json"
+
+    expected_identity = build_manifest_identity(
+        args,
+        output_dir,
+        samplers,
+    )
+
+    if manifest_path.exists():
+        with manifest_path.open(
+            "r",
+            encoding="utf-8",
+        ) as file:
+            existing_manifest = json.load(file)
+
+        for key, expected_value in expected_identity.items():
+            actual_value = existing_manifest.get(key)
+
+            if actual_value != expected_value:
+                raise RuntimeError(
+                    "Existing run manifest is incompatible: "
+                    f"field '{key}' does not match the "
+                    "current uniformity experiment."
+                )
+
+        print(
+            f"Validated run manifest: {manifest_path}"
+        )
+        return
+
+    existing_outputs = [
+        path
+        for path in output_dir.iterdir()
+        if path != manifest_path
+    ]
+
+    if existing_outputs:
+        raise RuntimeError(
+            "Cannot create a provenance manifest in a "
+            "directory that already contains experiment "
+            "outputs. Use a new --output-dir or remove the "
+            "smoke-test results first."
+        )
+
+    manifest = {
+        "created_at_utc": datetime.now(
+            timezone.utc
+        ).isoformat(),
+        **expected_identity,
+    }
+
+    with manifest_path.open(
+        "w",
+        encoding="utf-8",
+    ) as file:
+        json.dump(
+            manifest,
+            file,
+            indent=2,
+            sort_keys=True,
+        )
+        file.write("\n")
+
+    print(f"Created run manifest: {manifest_path}")
 
 def main() -> None:
     args = build_parser().parse_args()
 
-    if not args.exe.exists():
+    if not args.exe.is_file():
         raise FileNotFoundError(
             f"Executable not found: {args.exe}"
+        )
+
+    if not os.access(args.exe, os.X_OK):
+        raise PermissionError(
+            f"Executable is not marked as executable: {args.exe}"
         )
 
     if not args.dataset.exists():
@@ -722,20 +1082,34 @@ def main() -> None:
             f"results/experiments/uniformity_{dataset_stem}"
         )
     )
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    samplers = sampler_names(
+        args.samplers,
+        args.recovery,
+        args.fixed_level,
+    )
+
+    validate_or_create_manifest(
+        args,
+        output_dir,
+        samplers,
+    )
 
     support = compute_exact_support(
         args.dataset,
         args.item_column,
         args.delta_column,
     )
-
     if not support:
         raise RuntimeError(
             "The dataset has empty final support."
         )
 
-    samplers = sampler_names(args.samplers)
+    samplers = sampler_names(args.samplers,args.recovery,args.fixed_level)
 
     print(f"Dataset: {args.dataset}")
     print(f"Final support size: {len(support)}")
@@ -770,6 +1144,12 @@ def main() -> None:
                     log_path,
                     stem,
                     args.reuse,
+                    args.overwrite,
+                    trials,
+                    seed,
+                    sampler,
+                    args.recovery,
+                    args.fixed_level,
                 )
 
     rows = build_summary(
@@ -815,16 +1195,20 @@ def main() -> None:
                     seed,
                 )
 
-            if set(samplers) == {
-                "baseline",
-                "hash_greedy",
-            }:
+            hash_samplers = [
+                sampler
+                for sampler in samplers
+                if sampler != "baseline"
+            ]
+
+            if "baseline" in samplers and len(hash_samplers) == 1:
                 create_sampler_comparison(
                     rows,
                     output_dir,
                     dataset_stem,
                     trials,
                     seed,
+                    hash_samplers[0],
                 )
 
     print_run_summary(rows)
