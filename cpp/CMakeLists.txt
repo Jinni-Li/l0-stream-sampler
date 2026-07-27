@@ -76,6 +76,20 @@ add_executable(
     src/L0Sampler.cpp
 )
 
+add_executable(
+    benchmark_runtime
+    src/benchmark_runtime.cpp
+    src/CsvReader.cpp
+    src/ExactSupportTracker.cpp
+    src/L0Sampler.cpp
+    src/OneSparseSketch.cpp
+    src/SSparseSketch.cpp
+    src/HashBasedL0Sampler.cpp
+    src/PairwiseHash.cpp
+    src/SplitMix64Hash.cpp
+    src/KWisePolynomialHash.cpp
+)
+
 target_include_directories(
     test_sampler_config
     PRIVATE
