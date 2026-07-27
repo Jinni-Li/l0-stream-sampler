@@ -35,7 +35,7 @@ HashBasedL0Sampler::HashBasedL0Sampler(
     const SamplerConfig& config
 )
     :config_(validated_config(config)),
-    paper_hash_(std::make_unique<KWisePolynomialHash>(config_.seed, config_.polynomial_degree)) { 
+    sampling_selection_hash_(std::make_unique<KWisePolynomialHash>(config_.seed, config_.polynomial_degree)) { 
 
         levels_.reserve(config_.num_levels);
 
@@ -99,11 +99,11 @@ const SamplerConfig& HashBasedL0Sampler::config() const noexcept {
 }
 
 std::uint64_t HashBasedL0Sampler::hash_item(std::int64_t item_id) const {
-    return (*paper_hash_)(item_id);
+    return (*sampling_selection_hash_)(item_id);
 }
 
 std::uint64_t HashBasedL0Sampler::selection_hash(std::int64_t item_id) const{
-    return (*paper_hash_)(item_id);
+    return (*sampling_selection_hash_)(item_id);
 }
 
 SampleResult HashBasedL0Sampler::select_candidate(

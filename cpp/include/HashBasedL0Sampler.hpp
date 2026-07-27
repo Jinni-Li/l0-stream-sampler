@@ -26,7 +26,10 @@ public:
 private:
     SamplerConfig config_;
     std::vector<SSparseSketch> levels_;
-    std::unique_ptr<HashFunction> paper_hash_;
+
+    // The same k-wise hash is intentionally used for level sampling and minimum-hash selection,
+    // following the Cormode-Firmani construction.
+    std::unique_ptr<HashFunction> sampling_selection_hash_;
 
     SampleResult sample_greedy() const;
     SampleResult sample_fixed_level() const;
