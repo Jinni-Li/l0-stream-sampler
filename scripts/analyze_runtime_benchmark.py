@@ -30,6 +30,14 @@ class RuntimeSummary:
     recovery_stddev_ns: float
     recovery_p95_ns: float
 
+@dataclass
+class RuntimeStatusSummary:
+    sampler: str
+    sample_status: str
+    trials: int
+    recovery_mean_ns: float
+    recovery_median_ns: float
+    recovery_p95_ns: float
 
 def percentile(values: list[float], percentile_value: float) -> float:
     if not values:
@@ -115,6 +123,29 @@ def summarize_sampler(sampler: str, rows: list[dict[str, str]]) -> RuntimeSummar
         recovery_p95_ns=percentile(recovery_times, 0.95),
     )
 
+def build_status_summaries(rows: list[dict[str, str]],) -> list[RuntimeStatusSummary]:
+    grouped: dict[tuple[str, str],list[float]] = {}
+
+    for row in rows:
+        key = (row["sampler"],row["sample_status"])
+
+        grouped.setdefault(key, []).append(float(row["recovery_time_ns"]))
+
+    summaries: list[RuntimeStatusSummary] = []
+
+    for (sampler, sample_status), recovery_times in sorted(grouped.items()):
+        summaries.append(
+            RuntimeStatusSummary(
+                sampler=sampler,
+                sample_status=sample_status,
+                trials=len(recovery_times),
+                recovery_mean_ns=statistics.fmean(recovery_times),
+                recovery_median_ns=statistics.median(recovery_times),
+                recovery_p95_ns=percentile(recovery_times, 0.95,),
+            )
+        )
+
+    return summaries
 
 def save_summary(summaries: list[RuntimeSummary], path: Path) -> None:
     rows = [asdict(summary) for summary in summaries]
@@ -131,6 +162,18 @@ def save_summary(summaries: list[RuntimeSummary], path: Path) -> None:
         writer.writeheader()
         writer.writerows(rows)
 
+def save_status_summaries(summaries: list[RuntimeStatusSummary],path: Path,) -> None:
+    if not summaries:
+        raise ValueError(
+            "No runtime status summaries to save."
+        )
+
+    rows = [asdict(summary) for summary in summaries]
+
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()),)
+        writer.writeheader()
+        writer.writerows(rows)
 
 def create_update_plot(
     summaries: list[RuntimeSummary],
@@ -190,6 +233,12 @@ def main() -> None:
 
     save_summary(summaries,summary_path,)
 
+    status_summaries = build_status_summaries(rows)
+
+    status_summary_path = (args.output_dir / "runtime_status_summary.csv")
+
+    save_status_summaries(status_summaries, status_summary_path)
+
     create_update_plot(summaries, args.output_dir / "update_time_per_item.png",)
 
     create_recovery_plot(summaries, args.output_dir / "recovery_time.png",)
@@ -215,6 +264,7 @@ def main() -> None:
 
     print()
     print(f"Summary CSV: {summary_path}")
+    print(f"Status summary CSV: {status_summary_path}")
 
 
 if __name__ == "__main__":
