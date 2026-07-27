@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include <limits>
 
 int main() {
     {
@@ -423,6 +424,131 @@ int main() {
             std::cerr
                 << "Test 10 failed: invalid update modified "
                 << "the sampler state\n";
+            return 1;
+        }
+    }
+
+    // A cell-level moment overflow must propagate through fixed-level sampling diagnostics.
+    {
+        SamplerConfig config;
+
+        config.num_levels = 1;
+        config.sparsity = 1;
+        config.recovery_rows = 1;
+        config.recovery_buckets = 1;
+        config.recovery_mode = RecoveryMode::FixedLevel;
+        config.fixed_level = 0;
+        config.seed = 123;
+
+        HashBasedL0Sampler sampler(config);
+
+        const std::int64_t maximum = std::numeric_limits<std::int64_t>::max();
+
+        sampler.update(maximum, maximum);
+        sampler.update(maximum, maximum);
+        sampler.update(maximum, maximum);
+
+        const SampleResult result = sampler.sample();
+
+        if (result.status != SampleStatus::RecoveryFailure ||
+            result.item.has_value() ||
+            result.selected_level.has_value())
+        {
+            std::cerr
+                << "Test 11 failed: moment overflow should "
+                << "produce an unselected recovery failure\n";
+            return 1;
+        }
+
+        if (!result.candidates.empty())
+        {
+            std::cerr
+                << "Test 11 failed: moment overflow should "
+                << "not produce candidates\n";
+            return 1;
+        }
+
+        if (result.recovery_diagnostics.size() != 1)
+        {
+            std::cerr
+                << "Test 11 failed: expected one fixed-level "
+                << "diagnostic\n";
+            return 1;
+        }
+
+        const LevelRecoveryDiagnostic& diagnostic = result.recovery_diagnostics.front();
+
+        if (diagnostic.level != 0 ||
+            diagnostic.status != RecoveryStatus::MomentOverflow ||
+            diagnostic.recovered_item_count != 0)
+        {
+            std::cerr
+                << "Test 11 failed: incorrect moment-overflow "
+                << "diagnostic; status="
+                << to_string(diagnostic.status)
+                << '\n';
+            return 1;
+        }
+    }
+
+    // A moment overflow must also propagate through greedy recovery when no level can be recovered.
+    {
+        SamplerConfig config;
+
+        config.num_levels = 1;
+        config.sparsity = 1;
+        config.recovery_rows = 1;
+        config.recovery_buckets = 1;
+        config.recovery_mode = RecoveryMode::Greedy;
+        config.seed = 123;
+
+        HashBasedL0Sampler sampler(config);
+
+        const std::int64_t maximum = std::numeric_limits<std::int64_t>::max();
+
+        sampler.update(maximum, maximum);
+        sampler.update(maximum, maximum);
+        sampler.update(maximum, maximum);
+
+        const SampleResult result = sampler.sample();
+
+        if (result.status != SampleStatus::RecoveryFailure ||
+            result.item.has_value() ||
+            result.selected_level.has_value())
+        {
+            std::cerr
+                << "Greedy moment-overflow test failed: "
+                << "expected an unselected recovery failure\n";
+            return 1;
+        }
+
+        if (!result.candidates.empty())
+        {
+            std::cerr
+                << "Greedy moment-overflow test failed: "
+                << "unexpected recovery candidates\n";
+            return 1;
+        }
+
+        if (result.recovery_diagnostics.size() != 1)
+        {
+            std::cerr
+                << "Greedy moment-overflow test failed: "
+                << "expected one attempted level\n";
+            return 1;
+        }
+
+        const LevelRecoveryDiagnostic& diagnostic = result.recovery_diagnostics.front();
+
+        if (diagnostic.level != 0 ||
+            diagnostic.status != RecoveryStatus::MomentOverflow ||
+            diagnostic.recovered_item_count != 0)
+        {
+            std::cerr
+                << "Greedy moment-overflow test failed: "
+                << "incorrect recovery diagnostic; status="
+                << to_string(diagnostic.status)
+                << '\n';
             return 1;
         }
     }

@@ -244,6 +244,28 @@ int main() {
         }
     }
 
+
+    // Two active items whose moments produce an integer candidate must still fail the fingerprint check.
+    {
+        OneSparseSketch sketch;
+
+        sketch.update(1, 1);
+        sketch.update(3, 1);
+
+        const OneSparseRecoveryResult result = sketch.recover();
+
+        if (result.status != RecoveryStatus::FingerprintMismatch || result.item.has_value())
+        {
+            std::cerr
+                << "Test 13 failed: "
+                << "expected fingerprint_mismatch, got "
+                << to_string(result.status)
+                << '\n';
+
+            return 1;
+        }
+    }
+
     std::cout << "All OneSparseSketch tests passed.\n";
     return 0;
 }
