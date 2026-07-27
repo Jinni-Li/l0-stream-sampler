@@ -17,6 +17,11 @@ SamplerConfig validated_config(SamplerConfig config) {
     return config;
 }
 
+std::size_t validated_polynomial_degree(const SamplerConfig& config){
+    config.validate();
+    return config.hash_independence_k - 1;
+}
+
 std::vector<std::int64_t> extract_candidate_ids(const std::vector<RecoveredItem>& items){
     std::vector<std::int64_t> candidates;
     candidates.reserve(items.size());
@@ -35,7 +40,7 @@ HashBasedL0Sampler::HashBasedL0Sampler(
     const SamplerConfig& config
 )
     :config_(validated_config(config)),
-    sampling_selection_hash_(std::make_unique<KWisePolynomialHash>(config_.seed, config_.polynomial_degree)) { 
+    sampling_selection_hash_(std::make_unique<KWisePolynomialHash>(config_.seed, validated_polynomial_degree(config))) { 
 
         levels_.reserve(config_.num_levels);
 

@@ -31,6 +31,7 @@ class ExperimentResult:
     sparsity: int
     recovery_rows: int
     recovery_buckets: int
+    hash_independence_k: int
     polynomial_degree: int
     base_seed: int
     trial_csv: str
@@ -47,18 +48,18 @@ NUM_LEVELS = 32
 SPARSITY = 4
 RECOVERY_ROWS = 4
 RECOVERY_BUCKETS = 8
-POLYNOMIAL_DEGREE = 3
+HASH_INDEPENDENCE_K = 4
 
 FIXED_LEVELS = list(range(13))
 
-OUTPUT_DIRECTORY = Path("results/experiments/recovery_comparison")
+OUTPUT_DIRECTORY = Path("results/experiments/recovery_versions/complete_recovery_k4")
 SUMMARY_PATH = OUTPUT_DIRECTORY / "recovery_comparison_summary.csv"
 SUCCESS_PLOT_PATH = OUTPUT_DIRECTORY / "fixed_level_success_rate.png"
 STATUS_PLOT_PATH = OUTPUT_DIRECTORY / "fixed_level_status_breakdown.png"
 
 # True: reuse the existing trial CSV and log files.
 # False: rerun every C++ experiment.
-REUSE_EXISTING_RESULTS = True
+REUSE_EXISTING_RESULTS = False
 
 
 def extract_count(output: str, label: str) -> int:
@@ -170,8 +171,8 @@ def run_experiment(
         str(RECOVERY_ROWS),
         "--buckets",
         str(RECOVERY_BUCKETS),
-        "--degree",
-        str(POLYNOMIAL_DEGREE),
+        "--hash-k",
+        str(HASH_INDEPENDENCE_K),
         "--seed",
         str(BASE_SEED),
         "--recovery",
@@ -226,7 +227,8 @@ def run_experiment(
         sparsity=SPARSITY,
         recovery_rows=RECOVERY_ROWS,
         recovery_buckets=RECOVERY_BUCKETS,
-        polynomial_degree=POLYNOMIAL_DEGREE,
+        hash_independence_k=HASH_INDEPENDENCE_K,
+        polynomial_degree=HASH_INDEPENDENCE_K - 1,
         base_seed=BASE_SEED,
         trial_csv=str(trial_csv),
         log_file=str(log_file),

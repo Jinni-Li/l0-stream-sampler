@@ -85,7 +85,7 @@ int main() {
 
     {
         SamplerConfig config;
-        config.polynomial_degree = 0;
+        config.hash_independence_k = 1;
 
         if (!throws_invalid_argument(config)) {
             std::cerr
@@ -100,7 +100,7 @@ int main() {
         config.sparsity = 8;
         config.recovery_rows = 5;
         config.recovery_buckets = 16;
-        config.polynomial_degree = 4;
+        config.hash_independence_k = 5;
         config.seed = 500;
 
         if (throws_invalid_argument(config)) {

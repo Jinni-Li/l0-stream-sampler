@@ -155,7 +155,7 @@ int main() {
         config.sparsity = 8;
         config.recovery_rows = 5;
         config.recovery_buckets = 16;
-        config.polynomial_degree = 4;
+        config.hash_independence_k = 5;
         config.seed = 500;
 
         HashBasedL0Sampler sampler(config);
@@ -164,7 +164,7 @@ int main() {
             sampler.config().sparsity != 8 ||
             sampler.config().recovery_rows != 5 ||
             sampler.config().recovery_buckets != 16 ||
-            sampler.config().polynomial_degree != 4 ||
+            sampler.config().hash_independence_k != 5 ||
             sampler.config().seed != 500) {
 
             std::cerr
@@ -549,6 +549,57 @@ int main() {
                 << "incorrect recovery diagnostic; status="
                 << to_string(diagnostic.status)
                 << '\n';
+            return 1;
+        }
+    }
+
+    // Invalid k values must be rejected before the polynomial degree conversion can underflow.
+    {
+        SamplerConfig config;
+        config.hash_independence_k = 0;
+
+        bool threw = false;
+
+        try
+        {
+            HashBasedL0Sampler sampler(config);
+            static_cast<void>(sampler);
+        }
+        catch (const std::invalid_argument&)
+        {
+            threw = true;
+        }
+
+        if (!threw)
+        {
+            std::cerr
+                << "Test 13 failed: Invalid hash-independence k should "
+                << "be rejected during construction\n";
+            return 1;
+        }
+    }
+
+    {
+        SamplerConfig config;
+        config.hash_independence_k = 1;
+
+        bool threw = false;
+
+        try
+        {
+            HashBasedL0Sampler sampler(config);
+            static_cast<void>(sampler);
+        }
+        catch (const std::invalid_argument&)
+        {
+            threw = true;
+        }
+
+        if (!threw)
+        {
+            std::cerr
+                << "Test 14 failed: Hash-independence k below 2 "
+                << "should be rejected\n";
             return 1;
         }
     }

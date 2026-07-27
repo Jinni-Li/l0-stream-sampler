@@ -17,6 +17,7 @@
 #include <optional>
 #include <sstream>
 #include <utility>
+#include <stdexcept>
 
 
 std::string serialize_recovery_diagnostics(
@@ -52,7 +53,7 @@ int main(int argc, char* argv[]){
             << "[--sparsity N] "
             << "[--rows N] "
             << "[--buckets N] "
-            << "[--degree N] "
+            << "[--hash-k N] "
             << "[--seed N] "
             << "[--recovery greedy|fixed] "
             << "[--fixed-level N]\n";
@@ -129,8 +130,8 @@ int main(int argc, char* argv[]){
                     static_cast<std::size_t>(
                         std::stoull(require_value(argument))
                     );
-            } else if (argument == "--degree") {
-                base_config.polynomial_degree =
+            } else if (argument == "--hash-k") {
+                base_config.hash_independence_k =
                     static_cast<std::size_t>(
                         std::stoull(require_value(argument))
                     );
@@ -165,6 +166,8 @@ int main(int argc, char* argv[]){
 
         base_config.validate();
 
+        const std::size_t polynomial_degree = base_config.hash_independence_k - 1;
+
         const std::string recovery_mode_string =
             base_config.recovery_mode == RecoveryMode::Greedy
                 ? "greedy"
@@ -195,7 +198,8 @@ int main(int argc, char* argv[]){
             output_file
                 << "trial,sample,status,"
                 << "num_levels,sparsity,recovery_rows,recovery_buckets,"
-                << "polynomial_degree,base_seed,trial_seed,"
+                << "hash_independence_k,polynomial_degree,"
+                << "base_seed,trial_seed,"
                 << "recovery_mode,fixed_level,"
                 << "selected_level,recovery_attempts,recovery_trace\n";
         }
@@ -268,7 +272,8 @@ int main(int argc, char* argv[]){
                         << base_config.sparsity << ","
                         << base_config.recovery_rows << ","
                         << base_config.recovery_buckets << ","
-                        << base_config.polynomial_degree << ","
+                        << base_config.hash_independence_k << ","
+                        << polynomial_degree << ","
                         << base_config.seed << ","
                         << trial_seed << ","
                         << recovery_mode_string << ","
@@ -297,7 +302,8 @@ int main(int argc, char* argv[]){
                         << base_config.sparsity << ","
                         << base_config.recovery_rows << ","
                         << base_config.recovery_buckets << ","
-                        << base_config.polynomial_degree << ","
+                        << base_config.hash_independence_k << ","
+                        << polynomial_degree << ","
                         << base_config.seed << ","
                         << trial_seed << ","
                         << recovery_mode_string << ","
@@ -322,7 +328,8 @@ int main(int argc, char* argv[]){
                         << base_config.sparsity << ","
                         << base_config.recovery_rows << ","
                         << base_config.recovery_buckets << ","
-                        << base_config.polynomial_degree << ","
+                        << base_config.hash_independence_k << ","
+                        << polynomial_degree << ","
                         << base_config.seed << ","
                         << trial_seed << ","
                         << recovery_mode_string << ","
@@ -358,8 +365,13 @@ int main(int argc, char* argv[]){
                 << base_config.recovery_buckets
                 << "\n";
             std::cout
+                << " Hash independence k: "
+                << base_config.hash_independence_k
+                << "\n";
+
+            std::cout
                 << " Polynomial degree: "
-                << base_config.polynomial_degree
+                << polynomial_degree
                 << "\n";
             std::cout
                 << " Base seed: "
@@ -385,7 +397,7 @@ int main(int argc, char* argv[]){
         std::cout << "Final support size: " << tracker.support_size() << "\n";
 
         std::cout << "Final support items: \n";
-        for (int64_t item_id : support)
+        for (std::int64_t item_id : support)
         {
             std::cout << " " << item_id << "\n";
         }

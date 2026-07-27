@@ -26,8 +26,8 @@ struct SamplerConfig
     //Number of buckets per recovery row
     std::size_t recovery_buckets = 8;
 
-    // Degree of the polynomial hash used for sampling and selection
-    std::size_t polynomial_degree = 3;
+    // Requested structural independence order. A value k uses a polynomial of degree k - 1.
+    std::size_t hash_independence_k = 4;
 
     // Base seed from which the sampler derives its internal randomness.
     std::uint64_t seed = 123;
@@ -74,9 +74,9 @@ struct SamplerConfig
             );
         }
 
-        if (polynomial_degree == 0) {
+        if (hash_independence_k < 2){
             throw std::invalid_argument(
-                "SamplerConfig: polynomial_degree must be greater than 0."
+                "SamplerConfig: hash_independence_k must be at least 2."
             );
         }
 
