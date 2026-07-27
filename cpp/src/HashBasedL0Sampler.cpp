@@ -1,6 +1,7 @@
 #include "HashBasedL0Sampler.hpp"
 #include "KWisePolynomialHash.hpp"
 #include "HashUtils.hpp"
+#include "ItemDomain.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -50,6 +51,9 @@ HashBasedL0Sampler::HashBasedL0Sampler(
     }
 
 void HashBasedL0Sampler::update(std::int64_t item_id, std::int64_t delta) {
+
+    item_domain::validate(item_id);
+    
     if (levels_.empty() || delta == 0) {
         return;
     }

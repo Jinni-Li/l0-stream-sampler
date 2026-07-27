@@ -1,5 +1,6 @@
 #include "SSparseSketch.hpp"
 #include "HashUtils.hpp"
+#include "ItemDomain.hpp"
 
 #include <algorithm>
 #include <stdexcept>
@@ -137,6 +138,9 @@ table_(){
 }
 
 void SSparseSketch::update(std::int64_t item_id, std::int64_t delta){
+
+    item_domain::validate(item_id);
+    
     if (delta == 0){
         return;
     }

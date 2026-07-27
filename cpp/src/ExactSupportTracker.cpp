@@ -1,6 +1,10 @@
 #include "ExactSupportTracker.hpp"
+#include "ItemDomain.hpp"
 
 void ExactSupportTracker::update(const StreamUpdate& update){
+
+    item_domain::validate(update.item_id);
+    
     frequencies_[update.item_id] += update.delta;
 
     if (frequencies_[update.item_id] == 0){

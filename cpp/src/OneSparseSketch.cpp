@@ -1,5 +1,7 @@
 #include "OneSparseSketch.hpp"
 #include "HashUtils.hpp"
+#include "ItemDomain.hpp"
+
 
 #include<limits>
 
@@ -17,6 +19,8 @@ std::uint64_t OneSparseSketch::fingerprint_base()const noexcept{
 
 void OneSparseSketch::update(std::int64_t item_id, std::int64_t delta){
 
+    item_domain::validate(item_id);
+    
     if(overflowed_ || delta == 0)
     {
         return;

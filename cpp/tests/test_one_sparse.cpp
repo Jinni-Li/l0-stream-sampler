@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <limits>
+#include <stdexcept>
 
 int main() {
     {
@@ -186,6 +187,63 @@ int main() {
             }
         }
     }
+
+    // Negative item IDs must be rejected without changing the sketch state.
+    {
+        OneSparseSketch sketch;
+
+        bool threw = false;
+
+        try
+        {
+            sketch.update(-1, 1);
+        }
+        catch (const std::invalid_argument&)
+        {
+            threw = true;
+        }
+
+        if (!threw)
+        {
+            std::cerr
+                << "Test 11 failed: "
+                << "Negative item-ID. Expected invalid_argument\n";
+            return 1;
+        }
+
+        const auto result = sketch.recover();
+
+        if (result.status != RecoveryStatus::Empty || result.item.has_value()
+        )
+        {
+            std::cerr
+                << "Test 11 failed: "
+                << "Negative item-ID. Sketch state changed\n";
+            return 1;
+        }
+    }
+
+    // Item ID zero is part of the supported domain.
+    {
+        OneSparseSketch sketch;
+
+        sketch.update(0, 4);
+
+        const auto result = sketch.recover();
+
+        if (
+            result.status != RecoveryStatus::Success ||
+            !result.item.has_value() ||
+            result.item->item_id != 0 ||
+            result.item->frequency != 4
+        )
+        {
+            std::cerr
+                << "Test 12 failed: Zero item-ID test failed\n";
+            return 1;
+        }
+    }
+
     std::cout << "All OneSparseSketch tests passed.\n";
     return 0;
 }

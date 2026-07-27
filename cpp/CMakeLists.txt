@@ -68,6 +68,14 @@ add_executable(
     tests/test_sampler_config.cpp
 )
 
+add_executable(
+    test_item_domain
+    tests/test_item_domain.cpp
+    src/CsvReader.cpp
+    src/ExactSupportTracker.cpp
+    src/L0Sampler.cpp
+)
+
 target_include_directories(
     test_sampler_config
     PRIVATE
