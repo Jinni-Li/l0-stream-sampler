@@ -10,6 +10,7 @@ import hashlib
 import json
 import sys
 from datetime import datetime, timezone
+import os
 
 import matplotlib.pyplot as plt
 
@@ -41,8 +42,28 @@ class ExperimentResult:
     trial_csv: str
     log_file: str
 
+def default_executable_path() -> Path:
+    executable_name = (
+        "l0_sampler.exe"
+        if os.name == "nt"
+        else "l0_sampler"
+    )
 
-EXE = Path("cpp/build/l0_sampler.exe")
+    candidates = [
+        Path("cpp/build") / executable_name,
+        Path("cpp/build/Release") / executable_name,
+        Path("cpp/build/Debug") / executable_name,
+    ]
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+
+    # Return the normal CMake/Ninja path so that the
+    # eventual error message shows the expected location.
+    return candidates[0]
+
+EXE = default_executable_path()
 DATASET = Path("data/synthetic/multi_support_100.csv")
 
 TRIALS = 1000
@@ -672,9 +693,14 @@ def validate_or_create_manifest() -> None:
     print(f"Created run manifest: {MANIFEST_PATH}")
 
 def main() -> None:
-    if not EXE.exists():
+    if not EXE.is_file():
         raise FileNotFoundError(
             f"Executable not found: {EXE}. Build the C++ project first."
+        )
+    
+    if not os.access(args.exe, os.X_OK):
+        raise PermissionError(
+            f"Executable is not marked as executable: {args.exe}"
         )
 
     if not DATASET.exists():

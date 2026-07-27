@@ -10,6 +10,7 @@ import hashlib
 import json
 import sys
 from datetime import datetime, timezone
+import os
 
 import matplotlib.pyplot as plt
 
@@ -59,6 +60,24 @@ def parse_int_list(value: str) -> list[int]:
 
     return parsed
 
+def default_executable_path() -> Path:
+    executable_name = (
+        "l0_sampler.exe"
+        if os.name == "nt"
+        else "l0_sampler"
+    )
+
+    candidates = [
+        Path("cpp/build") / executable_name,
+        Path("cpp/build/Release") / executable_name,
+        Path("cpp/build/Debug") / executable_name,
+    ]
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+
+    return candidates[0]
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -76,8 +95,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--exe",
         type=Path,
-        default=Path("cpp/build/l0_sampler.exe"),
-        help="Path to the compiled sampler executable.",
+        default=default_executable_path(),
+        help="Path to the compiled sampler executable. "
+        "Automatically detects Windows, Linux, and macOS "
+        "build paths by default."
     )
     parser.add_argument(
         "--trials",
@@ -1033,9 +1054,14 @@ def validate_or_create_manifest(
 def main() -> None:
     args = build_parser().parse_args()
 
-    if not args.exe.exists():
+    if not args.exe.is_file():
         raise FileNotFoundError(
             f"Executable not found: {args.exe}"
+        )
+
+    if not os.access(args.exe, os.X_OK):
+        raise PermissionError(
+            f"Executable is not marked as executable: {args.exe}"
         )
 
     if not args.dataset.exists():
