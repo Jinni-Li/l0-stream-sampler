@@ -386,6 +386,46 @@ int main() {
 
     }
 
+    // Negative item IDs must be rejected before any sampling level is modified.
+    {
+        SamplerConfig config;
+        config.num_levels = 16;
+        config.seed = 42;
+
+        HashBasedL0Sampler sampler(config);
+
+        bool threw = false;
+
+        try
+        {
+            sampler.update(-1, 1);
+        }
+        catch (const std::invalid_argument&)
+        {
+            threw = true;
+        }
+
+        if (!threw)
+        {
+            std::cerr
+                << "Test 10 failed: expected invalid_argument "
+                << "for a negative item ID\n";
+            return 1;
+        }
+
+        const SampleResult result = sampler.sample();
+
+        if (
+            result.status != SampleStatus::EmptySupport ||
+            result.item.has_value()
+        )
+        {
+            std::cerr
+                << "Test 10 failed: invalid update modified "
+                << "the sampler state\n";
+            return 1;
+        }
+    }
 
     std::cout << "All HashBasedL0Sampler tests passed.\n";
     return 0;

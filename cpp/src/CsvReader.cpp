@@ -1,4 +1,5 @@
 #include "CsvReader.hpp"
+#include "ItemDomain.hpp"
 
 #include <fstream>
 #include <sstream>
@@ -38,6 +39,8 @@ std::vector<StreamUpdate> read_updates_from_csv(const std::string& path){
 
         update.item_id = std::stoll(item_str);
         update.delta = std::stoll(delta_str);
+        
+        item_domain::validate(update.item_id);
 
         updates.push_back(update);
     }

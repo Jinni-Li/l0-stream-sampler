@@ -1,10 +1,14 @@
 #include "L0Sampler.hpp"
+#include "ItemDomain.hpp"
 
 #include <vector>
 
 L0Sampler::L0Sampler(std::uint64_t seed):rng_(seed){}
 
 void L0Sampler::update(const StreamUpdate& update){
+
+    item_domain::validate(update.item_id);
+    
     frequencies_[update.item_id] += update.delta;
 
     if (frequencies_[update.item_id] == 0)
