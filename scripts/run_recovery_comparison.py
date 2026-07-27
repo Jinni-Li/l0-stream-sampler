@@ -77,7 +77,7 @@ HASH_INDEPENDENCE_K = 4
 
 FIXED_LEVELS = list(range(13))
 
-RUN_LABEL = "final_recovery_support100_v1"
+RUN_LABEL = "final_recovery_support100_v2"
 
 OUTPUT_DIRECTORY = (Path("results/experiments/recovery_comparison") / RUN_LABEL)
 SUMMARY_PATH = OUTPUT_DIRECTORY / "recovery_comparison_summary.csv"
