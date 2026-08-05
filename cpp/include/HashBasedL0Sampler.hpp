@@ -14,6 +14,11 @@ class HashBasedL0Sampler {
 public:
     explicit HashBasedL0Sampler(const SamplerConfig& config);
 
+    HashBasedL0Sampler(
+        const SamplerConfig& config,
+        const std::vector<std::int64_t>& item_universe
+    );
+
     void update(std::int64_t item_id, std::int64_t delta);
 
     SampleResult sample() const;

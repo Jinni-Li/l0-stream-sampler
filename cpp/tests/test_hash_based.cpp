@@ -672,6 +672,75 @@ int main() {
         }
     }
 
+    // Perfect randomness requires the finite item universe at construction.
+    {
+        SamplerConfig config;
+        config.sampling_randomness = SamplingRandomness::PerfectRandom;
+
+        bool threw = false;
+
+        try {
+            HashBasedL0Sampler sampler(config);
+            static_cast<void>(sampler);
+        } catch (const std::invalid_argument&) {
+            threw = true;
+        }
+
+        if (!threw) {
+            std::cerr
+                << "Perfect-random test failed: expected a missing-universe error\n";
+            return 1;
+        }
+    }
+
+    // Perfect randomness can drive sampling and selection while recovery remains unchanged.
+    {
+        SamplerConfig config;
+        config.num_levels = 16;
+        config.seed = 42;
+        config.sampling_randomness = SamplingRandomness::PerfectRandom;
+
+        const std::vector<std::int64_t> item_universe{17};
+        HashBasedL0Sampler sampler(config, item_universe);
+
+        sampler.update(17, 3);
+
+        const SampleResult result = sampler.sample();
+
+        if (
+            result.status != SampleStatus::Success ||
+            !result.item.has_value() ||
+            result.item.value() != 17
+        ) {
+            std::cerr
+                << "Perfect-random test failed: expected to sample item 17\n";
+            return 1;
+        }
+    }
+
+    // Updates for items outside the registered universe must be rejected.
+    {
+        SamplerConfig config;
+        config.sampling_randomness = SamplingRandomness::PerfectRandom;
+
+        const std::vector<std::int64_t> item_universe{5, 17, 44};
+        HashBasedL0Sampler sampler(config, item_universe);
+
+        bool threw = false;
+
+        try {
+            sampler.update(99, 1);
+        } catch (const std::out_of_range&) {
+            threw = true;
+        }
+
+        if (!threw) {
+            std::cerr
+                << "Perfect-random test failed: expected unknown item rejection\n";
+            return 1;
+        }
+    }
+
     std::cout << "All HashBasedL0Sampler tests passed.\n";
     return 0;
 }

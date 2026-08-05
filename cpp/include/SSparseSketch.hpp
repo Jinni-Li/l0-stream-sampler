@@ -1,10 +1,12 @@
 #pragma once
 #include "OneSparseSketch.hpp"
 #include "SamplerStatus.hpp"
-#include "PairwiseHash.hpp"
+#include "HashFunction.hpp"
+#include "SamplerConfig.hpp"
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 class SSparseSketch
@@ -15,6 +17,15 @@ class SSparseSketch
             std::size_t rows = 4,
             std::size_t buckets = 8,
             std::uint64_t seed = 123
+        );
+
+        SSparseSketch(
+            std::size_t sparsity,
+            std::size_t rows,
+            std::size_t buckets,
+            std::uint64_t seed,
+            RecoveryRandomness recovery_randomness,
+            const std::vector<std::int64_t>& item_universe
         );
 
         void update(std::int64_t item_id, std::int64_t delta);
@@ -37,7 +48,7 @@ class SSparseSketch
         std::uint64_t level_fingerprint_;
 
         std::vector<std::vector<OneSparseSketch>> table_;
-        std::vector<PairwiseHash>bucket_hashes_;
+        std::vector<std::unique_ptr<HashFunction>> bucket_hashes_;
         
         std::size_t bucket_for(std::size_t row, std::int64_t item_id) const;
 };

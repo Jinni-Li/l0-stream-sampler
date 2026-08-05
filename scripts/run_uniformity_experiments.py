@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import os
 import math
 from scipy.stats import chisquare
+import statistics
 
 import matplotlib.pyplot as plt
 
@@ -54,6 +55,7 @@ class UniformityMetrics:
     expected_count_per_item: float
     mean_absolute_normalized_deviation: float
     maximum_absolute_normalized_deviation: float
+    normalized_standard_deviation: float
     total_variation_distance: float
     chi_square_statistic: float
     chi_square_degrees_of_freedom: int
@@ -627,8 +629,6 @@ def build_summary(
 
     return rows
 
-
-
 def build_uniformity_metrics(
     rows: list[UniformityRow],
 ) -> list[UniformityMetrics]:
@@ -658,6 +658,7 @@ def build_uniformity_metrics(
         )
 
         support_size = len(selected_rows)
+
         successful_trials = (
             selected_rows[0].successful_trials
         )
@@ -671,11 +672,16 @@ def build_uniformity_metrics(
             for row in selected_rows
         ]
 
+        observed_counts = [
+            row.count
+            for row in selected_rows
+        ]
+
         expected_probability = (
             selected_rows[0].expected_probability
         )
 
-        normalized_deviations = [
+        absolute_normalized_deviations = [
             row.absolute_normalized_deviation
             for row in selected_rows
         ]
@@ -698,12 +704,15 @@ def build_uniformity_metrics(
             else 0.0
         )
 
-        if successful_trials > 0 and support_size > 1:
-            observed_counts = [
-                row.count
-                for row in selected_rows
-            ]
+        if expected_count > 0:
+            normalized_standard_deviation = (
+                statistics.pstdev(observed_counts)
+                / expected_count
+            )
+        else:
+            normalized_standard_deviation = math.nan
 
+        if successful_trials > 0 and support_size > 1:
             expected_counts = [
                 expected_count
             ] * support_size
@@ -719,10 +728,12 @@ def build_uniformity_metrics(
             chi_square_p_value = float(
                 chi_result.pvalue
             )
+
         elif successful_trials > 0:
             # A one-item support is trivially uniform.
             chi_square_statistic = 0.0
             chi_square_p_value = 1.0
+
         else:
             chi_square_statistic = math.nan
             chi_square_p_value = math.nan
@@ -741,11 +752,16 @@ def build_uniformity_metrics(
                 ),
                 expected_count_per_item=expected_count,
                 mean_absolute_normalized_deviation=(
-                    sum(normalized_deviations)
+                    sum(
+                        absolute_normalized_deviations
+                    )
                     / support_size
                 ),
                 maximum_absolute_normalized_deviation=max(
-                    normalized_deviations
+                    absolute_normalized_deviations
+                ),
+                normalized_standard_deviation=(
+                    normalized_standard_deviation
                 ),
                 total_variation_distance=(
                     total_variation_distance

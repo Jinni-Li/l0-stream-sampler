@@ -1,5 +1,6 @@
 #include "HashBasedL0Sampler.hpp"
 #include "KWisePolynomialHash.hpp"
+#include "PerfectRandomFunction.hpp"
 #include "HashUtils.hpp"
 #include "ItemDomain.hpp"
 #include "SelectionKey.hpp"
@@ -23,6 +24,30 @@ std::size_t validated_polynomial_degree(const SamplerConfig& config){
     return config.hash_independence_k - 1;
 }
 
+std::unique_ptr<HashFunction> make_sampling_selection_hash(
+    const SamplerConfig& config,
+    const std::vector<std::int64_t>& item_universe
+) {
+    if (config.sampling_randomness == SamplingRandomness::PerfectRandom) {
+        if (item_universe.empty()) {
+            throw std::invalid_argument(
+                "Perfect sampling randomness requires a non-empty item universe."
+            );
+        }
+
+        return std::make_unique<PerfectRandomFunction>(
+            item_universe,
+            config.seed,
+            KWisePolynomialHash::prime()
+        );
+    }
+
+    return std::make_unique<KWisePolynomialHash>(
+        config.seed,
+        validated_polynomial_degree(config)
+    );
+}
+
 std::vector<std::int64_t> extract_candidate_ids(const std::vector<RecoveredItem>& items){
     std::vector<std::int64_t> candidates;
     candidates.reserve(items.size());
@@ -40,8 +65,16 @@ std::vector<std::int64_t> extract_candidate_ids(const std::vector<RecoveredItem>
 HashBasedL0Sampler::HashBasedL0Sampler(
     const SamplerConfig& config
 )
-    :config_(validated_config(config)),
-    sampling_selection_hash_(std::make_unique<KWisePolynomialHash>(config_.seed, validated_polynomial_degree(config))) { 
+    : HashBasedL0Sampler(config, {}) {}
+
+HashBasedL0Sampler::HashBasedL0Sampler(
+    const SamplerConfig& config,
+    const std::vector<std::int64_t>& item_universe
+)
+    : config_(validated_config(config)),
+      sampling_selection_hash_(
+          make_sampling_selection_hash(config_, item_universe)
+      ) {
 
         levels_.reserve(config_.num_levels);
 
@@ -50,8 +83,14 @@ HashBasedL0Sampler::HashBasedL0Sampler(
             const std::uint64_t levels_seed = hash_utils::splitmix64(config_.seed + 
                 0x9e3779b97f4a7c15ULL * static_cast<std::uint64_t>(level + 1));
             
-            levels_.emplace_back(config_.sparsity, config_.recovery_rows, 
-                config_.recovery_buckets,levels_seed);
+            levels_.emplace_back(
+                config_.sparsity,
+                config_.recovery_rows,
+                config_.recovery_buckets,
+                levels_seed,
+                config_.recovery_randomness,
+                item_universe
+            );
         }
         
     }

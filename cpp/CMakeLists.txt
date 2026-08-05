@@ -18,6 +18,7 @@ add_executable(
     src/PairwiseHash.cpp
     src/SplitMix64Hash.cpp
     src/KWisePolynomialHash.cpp
+    src/PerfectRandomFunction.cpp
 )
 
 add_executable(
@@ -35,6 +36,7 @@ add_executable(
     src/PairwiseHash.cpp
     src/SplitMix64Hash.cpp
     src/KWisePolynomialHash.cpp
+    src/PerfectRandomFunction.cpp
 )
 
 add_executable(
@@ -43,6 +45,7 @@ add_executable(
     src/SSparseSketch.cpp
     src/OneSparseSketch.cpp
     src/PairwiseHash.cpp
+    src/PerfectRandomFunction.cpp
 )
 
 add_executable(
@@ -88,6 +91,7 @@ add_executable(
     src/PairwiseHash.cpp
     src/SplitMix64Hash.cpp
     src/KWisePolynomialHash.cpp
+    src/PerfectRandomFunction.cpp
 )
 
 target_include_directories(

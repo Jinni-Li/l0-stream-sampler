@@ -553,6 +553,76 @@ int main() {
     }
 
 
+    // Perfect recovery randomness requires a registered item universe.
+    {
+        bool threw = false;
+
+        try {
+            SSparseSketch sketch(
+                4,
+                4,
+                8,
+                123,
+                RecoveryRandomness::PerfectRandom,
+                {}
+            );
+        } catch (const std::invalid_argument&) {
+            threw = true;
+        }
+
+        if (!threw) {
+            std::cerr
+                << "Perfect recovery test failed: expected an empty "
+                << "universe to be rejected\n";
+            return 1;
+        }
+    }
+
+    // Perfect recovery buckets must recover a registered sparse vector.
+    {
+        const std::vector<std::int64_t> item_universe{17, 44, 1001};
+
+        SSparseSketch sketch(
+            4,
+            4,
+            8,
+            123,
+            RecoveryRandomness::PerfectRandom,
+            item_universe
+        );
+
+        sketch.update(17, 2);
+        sketch.update(44, -3);
+
+        const auto result = sketch.recover();
+
+        if (
+            result.status != RecoveryStatus::Success ||
+            !contains_item_with_frequency(result.items, 17, 2) ||
+            !contains_item_with_frequency(result.items, 44, -3)
+        ) {
+            std::cerr
+                << "Perfect recovery test failed: expected complete "
+                << "recovery of items 17 and 44\n";
+            return 1;
+        }
+
+        bool threw = false;
+
+        try {
+            sketch.update(9999, 1);
+        } catch (const std::out_of_range&) {
+            threw = true;
+        }
+
+        if (!threw) {
+            std::cerr
+                << "Perfect recovery test failed: expected an "
+                << "unregistered item to be rejected\n";
+            return 1;
+        }
+    }
+
     std::cout
         << "All SSparseSketch tests passed.\n";
 

@@ -1,8 +1,11 @@
 #include "SSparseSketch.hpp"
 #include "HashUtils.hpp"
 #include "ItemDomain.hpp"
+#include "PairwiseHash.hpp"
+#include "PerfectRandomFunction.hpp"
 
 #include <algorithm>
+#include <memory>
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
@@ -85,6 +88,23 @@ SSparseSketch::SSparseSketch(
     std::size_t buckets,
     std::uint64_t seed
 )
+    : SSparseSketch(
+          sparsity,
+          rows,
+          buckets,
+          seed,
+          RecoveryRandomness::PairwiseHash,
+          {}
+      ) {}
+
+SSparseSketch::SSparseSketch(
+    std::size_t sparsity,
+    std::size_t rows,
+    std::size_t buckets,
+    std::uint64_t seed,
+    RecoveryRandomness recovery_randomness,
+    const std::vector<std::int64_t>& item_universe
+)
 :sparsity_(sparsity),
 rows_(rows),
 buckets_(buckets),
@@ -125,14 +145,40 @@ table_(){
     }
     
 
+    if (
+        recovery_randomness == RecoveryRandomness::PerfectRandom &&
+        item_universe.empty()
+    ) {
+        throw std::invalid_argument(
+            "Perfect recovery randomness requires a non-empty item universe."
+        );
+    }
+
     bucket_hashes_.reserve(rows_);
 
     for (std::size_t row = 0; row < rows_; ++row)
     {
-        bucket_hashes_.emplace_back(
-            seed_ + 0x9e3779b97f4a7c15ULL * static_cast<std::int64_t>(row+1),
-            buckets_
-        );
+        const std::uint64_t row_seed =
+            seed_ +
+            0x9e3779b97f4a7c15ULL *
+                static_cast<std::uint64_t>(row + 1);
+
+        if (recovery_randomness == RecoveryRandomness::PerfectRandom) {
+            bucket_hashes_.push_back(
+                std::make_unique<PerfectRandomFunction>(
+                    item_universe,
+                    row_seed,
+                    buckets_
+                )
+            );
+        } else {
+            bucket_hashes_.push_back(
+                std::make_unique<PairwiseHash>(
+                    row_seed,
+                    buckets_
+                )
+            );
+        }
     }
     
 }
@@ -277,7 +323,7 @@ std::size_t SSparseSketch::buckets() const{
 }
 
 std::size_t SSparseSketch::bucket_for(std::size_t row, std::int64_t item_id) const{
-    return static_cast<std::size_t>(bucket_hashes_[row](item_id));
+    return static_cast<std::size_t>((*bucket_hashes_[row])(item_id));
 }
 
 std::uint64_t SSparseSketch::cell_fingerprint_base(std::size_t row, std::size_t bucket) const{

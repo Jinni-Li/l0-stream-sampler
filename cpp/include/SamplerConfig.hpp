@@ -9,6 +9,16 @@ enum class RecoveryMode {
     FixedLevel
 };
 
+enum class SamplingRandomness {
+    KWisePolynomial,
+    PerfectRandom
+};
+
+enum class RecoveryRandomness {
+    PairwiseHash,
+    PerfectRandom
+};
+
 struct SamplerConfig
 {
     // The 61-bit polynomial hash supports distinct geometric levels indexed from 0 to 60.
@@ -28,6 +38,12 @@ struct SamplerConfig
 
     // Requested structural independence order. A value k uses a polynomial of degree k - 1.
     std::size_t hash_independence_k = 4;
+
+    // Randomness used for geometric level sampling and minimum-hash selection.
+    SamplingRandomness sampling_randomness = SamplingRandomness::KWisePolynomial;
+
+    // Randomness used to assign items to sparse-recovery buckets.
+    RecoveryRandomness recovery_randomness = RecoveryRandomness::PairwiseHash;
 
     // Base seed from which the sampler derives its internal randomness.
     std::uint64_t seed = 123;

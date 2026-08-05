@@ -54,6 +54,8 @@ int main(int argc, char* argv[]){
             << "[--rows N] "
             << "[--buckets N] "
             << "[--hash-k N] "
+            << "[--sampling-randomness hash|perfect] "
+            << "[--recovery-randomness hash|perfect] "
             << "[--seed N] "
             << "[--recovery greedy|fixed] "
             << "[--fixed-level N]\n";
@@ -135,6 +137,34 @@ int main(int argc, char* argv[]){
                     static_cast<std::size_t>(
                         std::stoull(require_value(argument))
                     );
+            } else if (argument == "--sampling-randomness") {
+                const std::string mode = require_value(argument);
+
+                if (mode == "hash") {
+                    base_config.sampling_randomness =
+                        SamplingRandomness::KWisePolynomial;
+                } else if (mode == "perfect") {
+                    base_config.sampling_randomness =
+                        SamplingRandomness::PerfectRandom;
+                } else {
+                    throw std::invalid_argument(
+                        "Sampling randomness must be either 'hash' or 'perfect'."
+                    );
+                }
+            } else if (argument == "--recovery-randomness") {
+                const std::string mode = require_value(argument);
+
+                if (mode == "hash") {
+                    base_config.recovery_randomness =
+                        RecoveryRandomness::PairwiseHash;
+                } else if (mode == "perfect") {
+                    base_config.recovery_randomness =
+                        RecoveryRandomness::PerfectRandom;
+                } else {
+                    throw std::invalid_argument(
+                        "Recovery randomness must be either 'hash' or 'perfect'."
+                    );
+                }
             } else if (argument == "--seed") {
                 base_config.seed =
                     static_cast<std::uint64_t>(
@@ -173,7 +203,30 @@ int main(int argc, char* argv[]){
                 ? "greedy"
                 : "fixed";
 
-        std::vector<StreamUpdate> updates =  read_updates_from_csv(path);
+        const std::string sampling_randomness_string =
+            base_config.sampling_randomness == SamplingRandomness::PerfectRandom
+                ? "perfect"
+                : "hash";
+
+        const std::string recovery_randomness_string =
+            base_config.recovery_randomness == RecoveryRandomness::PerfectRandom
+                ? "perfect"
+                : "hash";
+
+        std::vector<StreamUpdate> updates = read_updates_from_csv(path);
+
+        std::vector<std::int64_t> item_universe;
+        item_universe.reserve(updates.size());
+
+        for (const StreamUpdate& update : updates) {
+            item_universe.push_back(update.item_id);
+        }
+
+        std::sort(item_universe.begin(), item_universe.end());
+        item_universe.erase(
+            std::unique(item_universe.begin(), item_universe.end()),
+            item_universe.end()
+        );
 
         ExactSupportTracker tracker;
 
@@ -199,6 +252,7 @@ int main(int argc, char* argv[]){
                 << "trial,sample,status,"
                 << "num_levels,sparsity,recovery_rows,recovery_buckets,"
                 << "hash_independence_k,polynomial_degree,"
+                << "sampling_randomness,recovery_randomness,"
                 << "base_seed,trial_seed,"
                 << "recovery_mode,fixed_level,"
                 << "selected_level,recovery_attempts,recovery_trace\n";
@@ -223,7 +277,7 @@ int main(int argc, char* argv[]){
                 SamplerConfig trial_config = base_config;
                 trial_config.seed = trial_seed;
 
-                HashBasedL0Sampler sampler(trial_config);
+                HashBasedL0Sampler sampler(trial_config, item_universe);
 
                 for (const auto& update : updates) {
                     sampler.update(update.item_id, update.delta);
@@ -274,6 +328,8 @@ int main(int argc, char* argv[]){
                         << base_config.recovery_buckets << ","
                         << base_config.hash_independence_k << ","
                         << polynomial_degree << ","
+                        << sampling_randomness_string << ","
+                        << recovery_randomness_string << ","
                         << base_config.seed << ","
                         << trial_seed << ","
                         << recovery_mode_string << ","
@@ -304,6 +360,8 @@ int main(int argc, char* argv[]){
                         << base_config.recovery_buckets << ","
                         << base_config.hash_independence_k << ","
                         << polynomial_degree << ","
+                        << sampling_randomness_string << ","
+                        << recovery_randomness_string << ","
                         << base_config.seed << ","
                         << trial_seed << ","
                         << recovery_mode_string << ","
@@ -330,6 +388,8 @@ int main(int argc, char* argv[]){
                         << base_config.recovery_buckets << ","
                         << base_config.hash_independence_k << ","
                         << polynomial_degree << ","
+                        << sampling_randomness_string << ","
+                        << recovery_randomness_string << ","
                         << base_config.seed << ","
                         << trial_seed << ","
                         << recovery_mode_string << ","
@@ -372,6 +432,14 @@ int main(int argc, char* argv[]){
             std::cout
                 << " Polynomial degree: "
                 << polynomial_degree
+                << "\n";
+            std::cout
+                << " Sampling randomness: "
+                << sampling_randomness_string
+                << "\n";
+            std::cout
+                << " Recovery randomness: "
+                << recovery_randomness_string
                 << "\n";
             std::cout
                 << " Base seed: "
