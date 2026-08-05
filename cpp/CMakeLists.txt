@@ -95,3 +95,8 @@ target_include_directories(
     PRIVATE
     include
 )
+add_executable(
+    test_perfect_random_function
+    tests/test_perfect_random_function.cpp
+    src/PerfectRandomFunction.cpp
+)
