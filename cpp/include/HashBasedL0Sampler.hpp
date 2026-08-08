@@ -26,7 +26,13 @@ public:
     std::size_t num_levels() const noexcept;
     const SamplerConfig& config() const noexcept;
 
-    
+    // Experimental diagnostic helper.
+    // Returns whether an item belongs to a given sampling level using the
+    // exact same sampling/selection random function used by the sampler.
+    bool diagnostic_item_in_level(
+        std::int64_t item_id,
+        std::size_t level
+    ) const;
 
 private:
     SamplerConfig config_;

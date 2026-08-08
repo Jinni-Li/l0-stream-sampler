@@ -145,6 +145,21 @@ const SamplerConfig& HashBasedL0Sampler::config() const noexcept {
     return config_;
 }
 
+bool HashBasedL0Sampler::diagnostic_item_in_level(
+    std::int64_t item_id,
+    std::size_t level
+) const {
+    item_domain::validate(item_id);
+
+    if (level >= levels_.size()) {
+        throw std::out_of_range(
+            "Diagnostic sampling level is outside the configured level range."
+        );
+    }
+
+    return included_in_level(hash_item(item_id), level);
+}
+
 std::uint64_t HashBasedL0Sampler::hash_item(std::int64_t item_id) const {
     return (*sampling_selection_hash_)(item_id);
 }

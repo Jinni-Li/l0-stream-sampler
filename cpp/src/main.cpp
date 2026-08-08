@@ -44,6 +44,36 @@ std::string serialize_recovery_diagnostics(
     return output.str();
 }
 
+std::string serialize_true_support_diagnostics(
+    const std::vector<LevelRecoveryDiagnostic>& diagnostics,
+    const HashBasedL0Sampler& sampler,
+    const std::vector<std::int64_t>& final_support
+) {
+    std::ostringstream output;
+
+    for (std::size_t i = 0; i < diagnostics.size(); ++i) {
+        if (i > 0) {
+            output << '|';
+        }
+
+        const std::size_t level = diagnostics[i].level;
+        std::size_t true_support_count = 0;
+
+        for (const std::int64_t item_id : final_support) {
+            if (sampler.diagnostic_item_in_level(item_id, level)) {
+                ++true_support_count;
+            }
+        }
+
+        output
+            << level
+            << ':'
+            << true_support_count;
+    }
+
+    return output.str();
+}
+
 int main(int argc, char* argv[]){
     if(argc < 2){
         std::cerr
@@ -255,7 +285,8 @@ int main(int argc, char* argv[]){
                 << "sampling_randomness,recovery_randomness,"
                 << "base_seed,trial_seed,"
                 << "recovery_mode,fixed_level,"
-                << "selected_level,recovery_attempts,recovery_trace\n";
+                << "selected_level,recovery_attempts,recovery_trace,"
+                << "true_support_trace\n";
         }
         
         std::unordered_map<std::int64_t, int> sampler_counts;
@@ -269,6 +300,7 @@ int main(int argc, char* argv[]){
             SampleStatus sample_status = SampleStatus::NoRecoverableLevel;
             std::optional<std::size_t> selected_level = std::nullopt;
             std::vector<LevelRecoveryDiagnostic> recovery_diagnostics;
+            std::string true_support_trace;
 
             const std::uint64_t trial_seed =
                 base_config.seed + static_cast<std::uint64_t>(i);
@@ -287,6 +319,13 @@ int main(int argc, char* argv[]){
                 sample_item = sample.item;
                 sample_status = sample.status;
                 selected_level = sample.selected_level;
+
+                true_support_trace =
+                    serialize_true_support_diagnostics(
+                        sample.recovery_diagnostics,
+                        sampler,
+                        support
+                    );
 
                 recovery_diagnostics = std::move(sample.recovery_diagnostics);
 
@@ -336,7 +375,8 @@ int main(int argc, char* argv[]){
                         << base_config.fixed_level << ","
                         << selected_level_text << ","
                         << recovery_attempts << ","
-                        << recovery_trace << "\n";
+                        << recovery_trace << ","
+                        << true_support_trace << "\n";
                 }
                 continue;
             }
@@ -368,7 +408,8 @@ int main(int argc, char* argv[]){
                         << base_config.fixed_level << ","
                         << selected_level_text << ","
                         << recovery_attempts << ","
-                        << recovery_trace << "\n";
+                        << recovery_trace << ","
+                        << true_support_trace << "\n";
                 }
                 
 
@@ -396,7 +437,8 @@ int main(int argc, char* argv[]){
                         << base_config.fixed_level << ","
                         << selected_level_text << ","
                         << recovery_attempts << ","
-                        << recovery_trace << "\n";
+                        << recovery_trace << ","
+                        << true_support_trace << "\n";
                 }
                 
             }
